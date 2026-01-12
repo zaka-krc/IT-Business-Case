@@ -1,0 +1,25 @@
+{
+  "name": "it-business-case",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zaka-krc/IT-Business-Case.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zaka-krc/IT-Business-Case/issues"
+  },
+  "homepage": "https://github.com/zaka-krc/IT-Business-Case#readme",
+  "description": "",
+  "dependencies": {
+    "amqplib": "^0.10.9",
+    "body-parser": "^2.2.2",
+    "express": "^5.2.1"
+  }
+}
