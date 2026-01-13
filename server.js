@@ -8,6 +8,7 @@ const port = 3000;
 // Instellingen voor RabbitMQ (kopieer dit precies)
 const RABBITMQ_URL = 'amqps://student:XYR4yqc.cxh4zug6vje@rabbitmq-exam.rmq3.cloudamqp.com/mxifnklj';
 const EXCHANGE_NAME = 'exchange.5ac84f7b-8c1c-42ee-ba23-47fc3ccb314d';
+const QUEUE_NAME = 'salesforce_queue'; // ← NIEUW: Queue naam toevoegen
 const ROUTING_KEY = '5ac84f7b-8c1c-42ee-ba23-47fc3ccb314d';
 
 // Middleware
@@ -23,6 +24,10 @@ async function sendToRabbitMQ(msgData) {
 
         // Exchange aanmaken (voor zekerheid)
         await channel.assertExchange(EXCHANGE_NAME, 'direct', { durable: true });
+
+        // ← NIEUW: Queue aanmaken en aan exchange binden!
+        await channel.assertQueue(QUEUE_NAME, { durable: true });
+        await channel.bindQueue(QUEUE_NAME, EXCHANGE_NAME, ROUTING_KEY);
 
         // Bericht omzetten naar JSON string
         const message = JSON.stringify({
