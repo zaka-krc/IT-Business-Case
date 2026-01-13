@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Techno | Bestel App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Ionicons for icons -->
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">Techno</div>
+        <div class="cart-icon-container" id="cart-icon">
+            <ion-icon name="cart-outline" size="large"></ion-icon>
+            <span class="cart-badge" id="cart-count">0</span>
+        </div>
+    </header>
+
+    <main>
+        <h1>Onze Producten</h1>
+        <div class="product-grid" id="product-grid">
+            <!-- Products will be loaded here by JS -->
+        </div>
+
+        <!-- Consumer Section -->
+        <div class="consumer-section" style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid #eee;">
+            <h2>RabbitMQ Consumer</h2>
+            <p>Klik op de knop om berichten uit de wachtrij te halen en hier te tonen.</p>
+            <button id="consume-btn" class="checkout-btn" style="max-width: 300px; margin: 1rem 0;">Consume RabbitMQ
+                Messages</button>
+
+            <div id="messages-display"
+                style="background: #f8f9fa; padding: 1rem; border-radius: 8px; min-height: 100px; font-family: monospace; white-space: pre-wrap; border: 1px solid #ddd;">
+                Nog geen berichten opgehaald...
+            </div>
+        </div>
+    </main>
+
+    <!-- Backdrop -->
+    <div class="backdrop" id="backdrop"></div>
+
+    <!-- Cart Overlay -->
+    <div class="cart-overlay" id="cart-overlay">
+        <div class="cart-header">
+            <h2>Winkelmandje</h2>
+            <button class="close-cart" id="close-cart">
+                <ion-icon name="close-outline"></ion-icon>
+            </button>
+        </div>
+
+        <div class="cart-body">
+            <!-- View 1: Cart Items -->
+            <div id="cart-view">
+                <div id="cart-items">
+                    <!-- Items inserted here -->
+                </div>
+            </div>
+
+            <!-- View 2: Checkout Form -->
+            <div id="checkout-view" class="checkout-form">
+                <button id="back-btn"
+                    style="background:none; border:none; color: #888; cursor: pointer; margin-bottom: 1rem; display: flex; align-items: center;">
+                    <ion-icon name="arrow-back-outline"></ion-icon> Terug naar mandje
+                </button>
+                <h3>Jouw Gegevens</h3>
+                <form id="order-form">
+                    <div class="form-group">
+                        <label for="firstName">Voornaam</label>
+                        <input type="text" id="firstName" name="firstName" required placeholder="Bijv. Jan">
+                    </div>
+                    <div class="form-group">
+                        <label for="lastName">Achternaam</label>
+                        <input type="text" id="lastName" name="lastName" required placeholder="Bijv. Jansen">
+                    </div>
+                    <div class="form-group">
+                        <label for="address">Adres</label>
+                        <textarea id="address" name="address" rows="3" required
+                            placeholder="Straatnaam 1, 1234 AB Stad"></textarea>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="cart-footer">
+            <div class="total-row">
+                <span>Totaal:</span>
+                <span id="cart-total">€ 0.00</span>
+            </div>
+            <button class="checkout-btn" id="next-btn">Volgende</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="consumer.js"></script>
+</body>
+
+</html>
