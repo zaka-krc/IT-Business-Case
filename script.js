@@ -9,8 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 6, name: 'Gaming Laptop', price: 1499.00, image: 'images/laptop.png' },
         { id: 7, name: 'Draadloze Oordopjes', price: 129.00, image: 'images/headphones.png' },
         { id: 8, name: '4K Action Camera', price: 349.00, image: 'images/smartphone.png' },
-        { id: 9, name: 'Fitness Tracker', price: 89.00, image: 'images/smartwatch.png' },
-        { id: 10, name: 'E-Reader Touch', price: 119.00, image: 'images/smartphone.png' }
     ];
 
     let cart = [];
