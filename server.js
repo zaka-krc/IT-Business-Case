@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const amqp = require('amqplib');
 const CryptoJS = require("crypto-js");
+const fs = require('fs');
 
 const app = express();
 const PORT = 3000;
@@ -19,13 +20,35 @@ app.use(express.static('.')); // Serve static files from current directory
 // RabbitMQ Connection URL
 // Format: amqp://username:password@ip-address
 // Note: 'guest' user usually only works on localhost. You likely need a custom user for remote access.
-const RABBITMQ_URL = 'amqp://admin:admin123@10.2.160.224';
+// RabbitMQ Connection URL
+// Format: amqps://username:password@ip-address:port
+const RABBITMQ_URL = 'amqps://admin:admin123@10.2.160.224:5671';
 const QUEUE_NAME = 'salesforce_queue';
+
+// SSL Options
+const CA_CERT_PATH = './certs/ca_certificate.pem';
+let sslOptions = {};
+try {
+    if (fs.existsSync(CA_CERT_PATH)) {
+        sslOptions = {
+            ca: [fs.readFileSync(CA_CERT_PATH)],
+            servername: 'rabbitmq-server', // Change SNI to match the CN in the cert
+            checkServerIdentity: (host, cert) => {
+                // SKIP hostname verification to allow IP connection with simple self-signed certs
+                return undefined;
+            }
+        };
+    } else {
+        console.warn(`Warning: CA Certificate not found at ${CA_CERT_PATH}. Connection might fail.`);
+    }
+} catch (err) {
+    console.error("Error reading CA certificate:", err);
+}
 
 async function sendToQueue(data) {
     let connection;
     try {
-        connection = await amqp.connect(RABBITMQ_URL);
+        connection = await amqp.connect(RABBITMQ_URL, sslOptions);
         const channel = await connection.createChannel();
 
         await channel.assertQueue(QUEUE_NAME, {
@@ -103,7 +126,7 @@ app.post('/api/send', async (req, res) => {
 async function consumeMessages() {
     let connection;
     try {
-        connection = await amqp.connect(RABBITMQ_URL);
+        connection = await amqp.connect(RABBITMQ_URL, sslOptions);
         const channel = await connection.createChannel();
 
         await channel.assertQueue(QUEUE_NAME, { durable: true });
