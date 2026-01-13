@@ -62,7 +62,6 @@ async function sendToQueue(data) {
             const encryptedMessage = CryptoJS.AES.encrypt(messageString, SECRET_KEY).toString();
 
             channel.sendToQueue(QUEUE_NAME, Buffer.from(encryptedMessage));
-            console.log(`[x] Sent (Encrypted) '${encryptedMessage}'`);
         }
 
         // Close connection after a short delay to ensure buffers are drained
