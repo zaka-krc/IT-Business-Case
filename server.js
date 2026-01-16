@@ -1,4 +1,5 @@
 const express = require('express');
+require('dotenv').config();
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const amqp = require('amqplib');
@@ -9,7 +10,7 @@ const app = express();
 const PORT = 3000;
 
 // Versleutelingssleutel
-const SECRET_KEY = 'IT-Business-Case-Secret';
+const SECRET_KEY = process.env.SECRET_KEY || 'default-dev-secret';
 
 // Middleware
 app.use(cors());
@@ -21,7 +22,7 @@ app.use(express.static('.')); // Statische bestanden serveren vanuit de huidige 
 // Let op: 'guest' gebruiker werkt meestal alleen op localhost. Je hebt waarschijnlijk een aangepaste gebruiker nodig voor externe toegang.
 // RabbitMQ Verbindings-URL
 // Formaat: amqps://gebruikersnaam:wachtwoord@ip-adres:poort
-const RABBITMQ_URL = 'amqps://admin:admin123@10.2.160.224:5671';
+const RABBITMQ_URL = process.env.RABBITMQ_URL;
 const QUEUE_NAME = 'salesforce_queue';
 
 // SSL Opties
@@ -149,10 +150,21 @@ async function consumeMessages() {
             if (!msg) break;
 
             // Retourneer de ruwe versleutelde string (cijfertekst)
-            // Hier NIET ontsleutelen. De consument zal ontsleutelen.
+            // Nu server-side ontsleuteling (veiliger)
             const content = msg.content.toString();
 
-            messages.push(content);
+            try {
+                // Ontsleutelen
+                const bytes = CryptoJS.AES.decrypt(content, SECRET_KEY);
+                const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+                const decryptedJson = JSON.parse(decryptedString);
+
+                messages.push(decryptedJson);
+            } catch (err) {
+                console.error("Decryption error:", err);
+                messages.push({ error: "Failed to decrypt message" });
+            }
+
             channel.ack(msg); // Bericht bevestigen om uit de wachtrij te verwijderen
         }
 
