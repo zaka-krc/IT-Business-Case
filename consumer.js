@@ -10,24 +10,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(res => res.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        const messages = data.data; // This is now an array of encrypted strings
+                        const messages = data.data; // Dit is nu een array van gedecrypte objecten
                         if (messages.length === 0) {
                             messagesDisplay.textContent = 'Geen berichten in de wachtrij (queue is leeg).';
                         } else {
-                            try {
-                                const encryptedMsg = messages[0];
-                                const secretKey = 'IT-Business-Case-Secret';
-
-                                // Decrypt
-                                const bytes = CryptoJS.AES.decrypt(encryptedMsg, secretKey);
-                                const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
-                                const decryptedJson = JSON.parse(decryptedString);
-
-                                messagesDisplay.textContent = JSON.stringify(decryptedJson, null, 2);
-                            } catch (e) {
-                                console.error('Decryption failed:', e);
-                                messagesDisplay.textContent = 'Fout bij decryptie (sleutel onjuist of data corrupt).';
-                            }
+                            // Toon het eerste bericht
+                            messagesDisplay.textContent = JSON.stringify(messages[0], null, 2);
                         }
                     } else {
                         messagesDisplay.textContent = 'Fout bij ophalen: ' + data.message;

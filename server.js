@@ -1,4 +1,5 @@
 const express = require('express');
+require('dotenv').config();
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const amqp = require('amqplib');
@@ -8,33 +9,32 @@ const fs = require('fs');
 const app = express();
 const PORT = 3000;
 
-// Encryption Key
-const SECRET_KEY = 'IT-Business-Case-Secret';
+// Versleutelingssleutel
+const SECRET_KEY = process.env.SECRET_KEY || 'default-dev-secret';
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static('.')); // Serve static files from current directory
+app.use(express.static('.')); // Statische bestanden serveren vanuit de huidige map
 
-// RabbitMQ Connection URL (default local instance)
-// RabbitMQ Connection URL
-// Format: amqp://username:password@ip-address
-// Note: 'guest' user usually only works on localhost. You likely need a custom user for remote access.
-// RabbitMQ Connection URL
-// Format: amqps://username:password@ip-address:port
-const RABBITMQ_URL = 'amqps://admin:admin123@10.2.160.224:5671';
+// RabbitMQ Verbindings-URL
+// Formaat: amqp://gebruikersnaam:wachtwoord@ip-adres
+// Let op: 'guest' gebruiker werkt meestal alleen op localhost. Je hebt waarschijnlijk een aangepaste gebruiker nodig voor externe toegang.
+// RabbitMQ Verbindings-URL
+// Formaat: amqps://gebruikersnaam:wachtwoord@ip-adres:poort
+const RABBITMQ_URL = process.env.RABBITMQ_URL;
 const QUEUE_NAME = 'salesforce_queue';
 
-// SSL Options
+// SSL Opties
 const CA_CERT_PATH = './certs/ca_certificate.pem';
 let sslOptions = {};
 try {
     if (fs.existsSync(CA_CERT_PATH)) {
         sslOptions = {
             ca: [fs.readFileSync(CA_CERT_PATH)],
-            servername: 'rabbitmq-server', // Change SNI to match the CN in the cert
+            servername: 'rabbitmq-server', // Wijzig SNI om overeen te komen met de CN in het certificaat
             checkServerIdentity: (host, cert) => {
-                // SKIP hostname verification to allow IP connection with simple self-signed certs
+                // Hostnaamverificatie OVERSLAAN om IP-verbinding met eenvoudige zelfondertekende certificaten toe te staan
                 return undefined;
             }
         };
@@ -55,8 +55,8 @@ async function sendToQueue(data) {
             durable: true
         });
 
-        // Split order into individual product messages
-        // Expected data structure from frontend:
+        // Bestelling samenstellen als één bericht inclusief order- en klantgegevens
+        // Verwachte datastructuur van frontend:
         // {
         //   items: [{ id, name, price, quantity }, ...],
         //   customer: { voornaam, naam, adress }
@@ -68,26 +68,36 @@ async function sendToQueue(data) {
             throw new Error('Invalid data structure');
         }
 
-        for (const item of items) {
-            const messagePayload = {
-                productid: item.id,
-                productname: item.name,
-                "totaal prijs": item.price * item.quantity,
-                "product hoeveelheid": item.quantity,
-                adress: customer.adress,
+        // Genereer een uniek order-ID
+        const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const totalOrderPrice = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+        const messagePayload = {
+            orderId: orderId,
+            orderDate: new Date().toISOString(),
+            customer: {
+                voornaam: customer.voornaam,
                 naam: customer.naam,
-                voornaam: customer.voornaam
-            };
+                adress: customer.adress
+            },
+            items: items.map(item => ({
+                productId: item.id,
+                productName: item.name,
+                quantity: item.quantity,
+                unitPrice: item.price,
+                totalPrice: item.price * item.quantity
+            })),
+            totalAmount: totalOrderPrice
+        };
 
-            const messageString = JSON.stringify(messagePayload);
+        const messageString = JSON.stringify(messagePayload);
 
-            // Encrypt before sending
-            const encryptedMessage = CryptoJS.AES.encrypt(messageString, SECRET_KEY).toString();
+        // Versleutelen voor verzending
+        const encryptedMessage = CryptoJS.AES.encrypt(messageString, SECRET_KEY).toString();
 
-            channel.sendToQueue(QUEUE_NAME, Buffer.from(encryptedMessage));
-        }
+        channel.sendToQueue(QUEUE_NAME, Buffer.from(encryptedMessage));
 
-        // Close connection after a short delay to ensure buffers are drained
+        // Verbindung sluiten na een korte vertraging om te zorgen dat buffers leeg zijn
         setTimeout(() => {
             if (connection) connection.close();
         }, 500);
@@ -108,7 +118,7 @@ app.post('/api/send', async (req, res) => {
         const orderData = req.body;
         // console.log('Received order payload:', JSON.stringify(orderData, null, 2));
 
-        // Basic validation
+        // Basisvalidatie
         if (!orderData || !orderData.items || orderData.items.length === 0 || !orderData.customer) {
             return res.status(400).json({ status: 'error', message: 'Missing required fields or empty cart' });
         }
@@ -122,7 +132,7 @@ app.post('/api/send', async (req, res) => {
     }
 });
 
-// Consumer Logic
+// Consumentenlogica
 async function consumeMessages() {
     let connection;
     try {
@@ -134,17 +144,28 @@ async function consumeMessages() {
         const messages = [];
         let msg;
 
-        // Fetch 1 message at a time
+        // Ophalen van 1 bericht per keer
         for (let i = 0; i < 1; i++) {
             msg = await channel.get(QUEUE_NAME);
             if (!msg) break;
 
-            // Return the raw encrypted string (ciphertext)
-            // Do NOT decrypt here. Consumer will decrypt.
+            // Retourneer de ruwe versleutelde string (cijfertekst)
+            // Nu server-side ontsleuteling (veiliger)
             const content = msg.content.toString();
 
-            messages.push(content);
-            channel.ack(msg); // Acknowledge message to remove from queue
+            try {
+                // Ontsleutelen
+                const bytes = CryptoJS.AES.decrypt(content, SECRET_KEY);
+                const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+                const decryptedJson = JSON.parse(decryptedString);
+
+                messages.push(decryptedJson);
+            } catch (err) {
+                console.error("Decryption error:", err);
+                messages.push({ error: "Failed to decrypt message" });
+            }
+
+            channel.ack(msg); // Bericht bevestigen om uit de wachtrij te verwijderen
         }
 
         setTimeout(() => {
@@ -172,7 +193,7 @@ app.get('/api/consume', async (req, res) => {
     }
 });
 
-// Start Server
+// Server Starten
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`RabbitMQ Target: ${RABBITMQ_URL}`);

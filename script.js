@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Application State
+    // Applicatietoestand
     const products = [
         { id: 1, name: 'Premium Laptop Pro', price: 999.00, image: 'images/laptop.png' },
         { id: 2, name: 'Smartphone X', price: 799.00, image: 'images/smartphone.png' },
@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let cart = [];
 
-    // DOM Elements
+    // DOM Elementen
     const productGrid = document.getElementById('product-grid');
     const cartIcon = document.getElementById('cart-icon');
     const cartOverlay = document.getElementById('cart-overlay');
@@ -31,13 +31,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const backBtn = document.getElementById('back-btn');
     const checkoutForm = document.getElementById('order-form');
 
-    // Initialization
+    // Initialisatie
     function init() {
         renderProducts();
         updateCartUI();
     }
 
-    // Render Products
+    // Producten Renderen
     function renderProducts() {
         productGrid.innerHTML = products.map(product => `
             <div class="product-card">
@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     }
 
-    // Cart Logic
+    // Winkelmand Logica
     window.addToCart = (productId) => {
         const product = products.find(p => p.id === productId);
         const existingItem = cart.find(item => item.id === productId);
@@ -82,11 +82,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function updateCartUI() {
-        // Update badge
+        // Badge bijwerken
         const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
         cartCountElement.textContent = totalItems;
 
-        // Render cart items
+        // Winkelmand items renderen
         if (cart.length === 0) {
             cartItemsContainer.innerHTML = '<p style="text-align:center; color: #888;">Je winkelmandje is leeg.</p>';
             nextBtn.style.display = 'none';
@@ -108,16 +108,16 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('');
         }
 
-        // Update Total
+        // Totaal bijwerken
         const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         cartTotalElement.textContent = `€ ${total.toFixed(2)}`;
     }
 
-    // Navigation & UI State
+    // Navigatie & UI Status
     function openCart() {
         cartOverlay.classList.add('open');
         backdrop.classList.add('active');
-        showCartView(); // Reset to cart view when opening
+        showCartView(); // Reset naar winkelmandweergave bij het openen
     }
 
     function closeCart() {
@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showCartView() {
         cartView.style.display = 'block';
         checkoutView.classList.remove('active');
-        checkoutView.style.display = 'none'; // Ensure hidden
+        checkoutView.style.display = 'none'; // Zorg dat het verborgen is
         nextBtn.textContent = 'Volgende';
     }
 
@@ -136,22 +136,22 @@ document.addEventListener('DOMContentLoaded', () => {
         cartView.style.display = 'none';
         checkoutView.style.display = 'block';
         nextBtn.textContent = 'Verzenden';
-        // Small delay to allow display:block to apply before adding active class for animation
+        // Kleine vertraging om display:block toe te passen voordat de active-klasse voor animatie wordt toegevoegd
         setTimeout(() => checkoutView.classList.add('active'), 10);
     }
 
-    // Event Listeners
+    // Event Listeners (Gebeurtenisluisteraars)
     cartIcon.addEventListener('click', openCart);
     closeCartBtn.addEventListener('click', closeCart);
     backdrop.addEventListener('click', closeCart);
 
-    // Logic for the main action button (Next / Send)
+    // Logica voor de belangrijkste actieknop (Volgende / Verzenden)
     nextBtn.addEventListener('click', () => {
         if (checkoutView.style.display === 'block') {
-            // We are in checkout mode, act as "Verzenden"
+            // We zijn in de afrekenmodus, doe "Verzenden"
             submitOrder();
         } else {
-            // We are in cart mode, act as "Volgende"
+            // We zijn in de winkelmandmodus, doe "Volgende"
             if (cart.length > 0) {
                 showCheckoutView();
             }
@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = new FormData(checkoutForm);
 
-        // Construct detailed order payload
+        // Gedetailleerde bestelgegevens samenstellen
         const orderDetails = {
             items: cart.map(item => ({
                 id: item.id,
@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // Send to Backend Bridge
+        // Verzenden naar de Backend Bridge
         fetch('http://localhost:3000/api/send', {
             method: 'POST',
             headers: {
@@ -196,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('Server Request Success:', data);
                 alert(`Bedankt ${formData.get('firstName')}! Je bestelling is verzonden.`);
 
-                // Reset
+                // Resetten
                 cart = [];
                 updateCartUI();
                 closeCart();
@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error:', error);
                 alert('Kan geen verbinding maken met de backend service.\nZorg ervoor dat "node backend.js" draait in de terminal!');
             });
-        // Reset view state happens in closeCart > showCartView next time
+        // Reset van de weergavestatus gebeurt de volgende keer in closeCart > showCartView
     }
 
 
