@@ -68,7 +68,7 @@ async function startSapConverter() {
             <MENGE>${data['product hoeveelheid']}</MENGE>
         </E1EDP01>
     </IDOC>
-</ORDERS05>`;
+</ORDERS05>`; 
 
                     console.log("\n✅ SUCCES: Vertaald naar SAP IDoc XML:");
                     console.log(sapXml);
