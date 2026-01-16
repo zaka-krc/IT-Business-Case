@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Techno | Afrekenen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <style>
+        /* Specific styles for checkout page layout */
+        .checkout-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .order-summary {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+
+        .order-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+
+        .order-total {
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-top: 1rem;
+            border-top: 2px solid #ddd;
+            padding-top: 1rem;
+            text-align: right;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .form-col {
+            flex: 1;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">Techno</div>
+        <a href="index.html" style="text-decoration: none; color: var(--dark-bg); font-weight: 600;">
+            <ion-icon name="arrow-back-outline"></ion-icon> Terug naar winkel
+        </a>
+    </header>
+
+    <main>
+        <div class="checkout-container">
+            <h1>Afrekenen</h1>
+
+            <div class="order-summary">
+                <h3>Bestelling Overzicht</h3>
+                <div id="order-items-list">
+                    <!-- Items will be injected here -->
+                </div>
+                <div class="order-total" id="order-total-display">
+                    Totaal: € 0.00
+                </div>
+            </div>
+
+            <form id="checkout-form">
+                <h3>Jouw Gegevens</h3>
+
+                <div class="form-row">
+                    <div class="form-group form-col">
+                        <label for="firstName">Voornaam</label>
+                        <input type="text" id="firstName" name="firstName" required placeholder="Jan">
+                    </div>
+                    <div class="form-group form-col">
+                        <label for="lastName">Naam</label>
+                        <input type="text" id="lastName" name="lastName" required placeholder="Jansen">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">E-mailadres</label>
+                    <input type="email" id="email" name="email" required placeholder="jan.jansen@example.com">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group form-col" style="flex: 3;">
+                        <label for="street">Straat</label>
+                        <input type="text" id="street" name="street" required placeholder="Kerkstraat">
+                    </div>
+                    <div class="form-group form-col" style="flex: 1;">
+                        <label for="houseNumber">Nr.</label>
+                        <input type="text" id="houseNumber" name="houseNumber" required placeholder="10">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="zipcode">Postcode</label>
+                    <input type="text" id="zipcode" name="zipcode" required placeholder="1000">
+                </div>
+
+                <button type="submit" class="checkout-btn" style="margin-top: 2rem;">Bestelling Plaatsen</button>
+            </form>
+        </div>
+    </main>
+
+    <script src="checkout.js"></script>
+</body>
+
+</html>

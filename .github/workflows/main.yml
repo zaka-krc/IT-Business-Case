@@ -1,0 +1,41 @@
+name: Deploy to VM
+
+on:
+  push:
+    branches:
+      - main  # De actie start als je naar de main branch pusht
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install  # Installeert express, amqplib, etc.
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VM_IP }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd /pad/naar/jouw/project
+            git pull origin main
+            npm install --production
+            
+            # Update .env bestand op de VM
+            echo "RABBITMQ_URL=${{ secrets.RABBITMQ_URL }}" > .env
+            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+            echo "PORT=3000" >> .env
+            
+            # Herstart de server (gebruik pm2 voor continuïteit)
+            pm2 restart server.js || pm2 start server.js --name "order-app"
