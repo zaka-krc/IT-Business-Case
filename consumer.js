@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(res => res.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        const messages = data.data; // This is now an array of encrypted strings
+                        const messages = data.data; // Dit is nu een array van versleutelde strings
                         if (messages.length === 0) {
                             messagesDisplay.textContent = 'Geen berichten in de wachtrij (queue is leeg).';
                         } else {
@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const encryptedMsg = messages[0];
                                 const secretKey = 'IT-Business-Case-Secret';
 
-                                // Decrypt
+                                // Ontsleutelen
                                 const bytes = CryptoJS.AES.decrypt(encryptedMsg, secretKey);
                                 const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
                                 const decryptedJson = JSON.parse(decryptedString);

@@ -1,7 +1,7 @@
 :root {
-    --primary-color: #FF6B6B; /* Vibrant Coral */
-    --secondary-color: #4ECDC4; /* Teal */
-    --accent-color: #ffe66d; /* Soft Yellow */
+    --primary-color: #FF6B6B; /* Levendig Koraal */
+    --secondary-color: #4ECDC4; /* Groenblauw */
+    --accent-color: #ffe66d; /* Zacht Geel */
     --dark-bg: #2C3E50;
     --light-bg: #F7F9FC;
     --text-color: #2C3E50;
@@ -24,7 +24,7 @@ body {
     line-height: 1.6;
 }
 
-/* Header */
+/* Koptekst */
 header {
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(10px);
@@ -84,7 +84,7 @@ header {
     border: 2px solid var(--white);
 }
 
-/* Main Content */
+/* Hoofdinhoud */
 main {
     margin-top: 80px;
     padding: 2rem;
@@ -100,7 +100,7 @@ h1 {
     color: var(--dark-bg);
 }
 
-/* Product Grid */
+/* Productenoverzicht */
 .product-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -167,7 +167,7 @@ h1 {
     background: var(--primary-color);
 }
 
-/* Cart Overlay */
+/* Winkelmand Overlay */
 .cart-overlay {
     position: fixed;
     top: 0;
@@ -296,7 +296,7 @@ h1 {
     filter: brightness(110%);
 }
 
-/* Checkout Form */
+/* Afrekenformulier */
 .checkout-form {
     display: none;
     animation: fadeIn 0.3s ease;
@@ -336,7 +336,7 @@ h1 {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Overlay Backdrop */
+/* Achtergrond Overlay */
 .backdrop {
     position: fixed;
     top: 0;
