@@ -19,9 +19,18 @@
 
     <header>
         <div class="logo">Techno</div>
-        <div class="cart-icon-container" id="cart-icon">
-            <ion-icon name="cart-outline" size="large"></ion-icon>
-            <span class="cart-badge" id="cart-count">0</span>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div id="user-actions">
+                <a href="login.html" class="login-link"
+                    style="text-decoration: none; color: var(--dark-bg); font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                    <ion-icon name="person-circle-outline" size="large"></ion-icon>
+                    <span id="user-label">Inloggen</span>
+                </a>
+            </div>
+            <div class="cart-icon-container" id="cart-icon">
+                <ion-icon name="cart-outline" size="large"></ion-icon>
+                <span class="cart-badge" id="cart-count">0</span>
+            </div>
         </div>
     </header>
 

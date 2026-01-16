@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Techno | Inloggen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <style>
+        .auth-container {
+            max-width: 400px;
+            margin: 2rem auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .toggle-btn {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 1rem;
+            display: block;
+            text-align: center;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">Techno</div>
+        <a href="index.html" style="text-decoration: none; color: var(--dark-bg); font-weight: 600;">
+            <ion-icon name="arrow-back-outline"></ion-icon> Terug naar winkel
+        </a>
+    </header>
+
+    <main>
+        <!-- LOGIN FORM -->
+        <div id="login-section" class="auth-container">
+            <h2>Inloggen</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-email">E-mailadres</label>
+                    <input type="email" id="login-email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Wachtwoord</label>
+                    <input type="password" id="login-password" name="password" required>
+                </div>
+                <button type="submit" class="checkout-btn">Inloggen</button>
+            </form>
+            <button class="toggle-btn" onclick="showRegister()">Nog geen account? Registreren</button>
+        </div>
+
+        <!-- REGISTER FORM -->
+        <div id="register-section" class="auth-container" style="display: none;">
+            <h2>Registreren</h2>
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="reg-firstname">Voornaam</label>
+                    <input type="text" id="reg-firstname" name="firstName" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg-lastname">Achternaam</label>
+                    <input type="text" id="reg-lastname" name="lastName" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg-email">E-mailadres</label>
+                    <input type="email" id="reg-email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">Wachtwoord</label>
+                    <input type="password" id="reg-password" name="password" required>
+                </div>
+                <button type="submit" class="checkout-btn">Account Aanmaken</button>
+            </form>
+            <button class="toggle-btn" onclick="showLogin()">Al een account? Inloggen</button>
+        </div>
+    </main>
+
+    <script src="login.js"></script>
+</body>
+
+</html>

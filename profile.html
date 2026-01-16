@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Techno | Profiel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <style>
+        .profile-container {
+            max-width: 600px;
+            margin: 2rem auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .danger-zone {
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid #ffcccc;
+        }
+
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 0.8rem;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .btn-logout {
+            background-color: #6c757d;
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">Techno</div>
+        <a href="index.html" style="text-decoration: none; color: var(--dark-bg); font-weight: 600;">
+            <ion-icon name="arrow-back-outline"></ion-icon> Terug naar winkel
+        </a>
+    </header>
+
+    <main>
+        <div class="profile-container">
+            <h1 id="welcome-msg">Mijn Profiel</h1>
+            <button class="checkout-btn btn-logout" id="logout-btn">Uitloggen</button>
+
+            <h3>Mijn Adresgegevens</h3>
+            <p style="font-size: 0.9em; coloe: #666; margin-bottom: 1rem;">Deze gegevens worden automatisch ingevuld bij
+                het afrekenen.</p>
+
+            <form id="address-form">
+                <div class="form-row" style="display:flex; gap:1rem;">
+                    <div class="form-group" style="flex:3;">
+                        <label>Straat</label>
+                        <input type="text" name="street" id="p-street" placeholder="Straatnaam">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label>Nr.</label>
+                        <input type="text" name="number" id="p-number" placeholder="Nr">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Postcode</label>
+                    <input type="text" name="zipcode" id="p-zipcode" placeholder="Postcode">
+                </div>
+                <button type="submit" class="checkout-btn">Opslaan</button>
+            </form>
+
+            <div class="danger-zone">
+                <h3 style="color: #dc3545;">Account Verwijderen</h3>
+                <p>Deze actie is onomkeerbaar.</p>
+                <button id="delete-account-btn" class="btn-danger">Account permanent verwijderen</button>
+            </div>
+        </div>
+    </main>
+
+    <script src="profile.js"></script>
+</body>
+
+</html>

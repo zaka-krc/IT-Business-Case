@@ -11,6 +11,7 @@ const PORT = 3000;
 
 // Versleutelingssleutel
 const SECRET_KEY = process.env.SECRET_KEY || 'default-dev-secret';
+const USERS_FILE = './users.json';
 
 // Middleware
 app.use(cors());
@@ -126,7 +127,103 @@ async function sendToQueue(data) {
     }
 }
 
+
+// --- AUTHENTICATIE & GEBRUIKERSBEHEER ---
+
+// Helper: Lees gebruikers
+function readUsers() {
+    if (!fs.existsSync(USERS_FILE)) return [];
+    try {
+        const data = fs.readFileSync(USERS_FILE);
+        return JSON.parse(data);
+    } catch (e) {
+        return [];
+    }
+}
+
+// Helper: Schrijf gebruikers
+function writeUsers(users) {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+// REGISTER
+app.post('/api/register', (req, res) => {
+    const { email, password, firstName, lastName } = req.body;
+    if (!email || !password || !firstName || !lastName) {
+        return res.status(400).json({ status: 'error', message: 'Alle velden zijn verplicht.' });
+    }
+
+    const users = readUsers();
+    if (users.find(u => u.email === email)) {
+        return res.status(400).json({ status: 'error', message: 'Gebruiker bestaat al.' });
+    }
+
+    const newUser = {
+        id: Date.now().toString(),
+        email,
+        password, // In productie hier HASHER gebruiken!
+        firstName,
+        lastName,
+        address: { street: '', number: '', zipcode: '' }
+    };
+
+    users.push(newUser);
+    writeUsers(users);
+
+    // Stuur terug zonder wachtwoord
+    const { password: _, ...userReturn } = newUser;
+    res.json({ status: 'success', user: userReturn });
+});
+
+// LOGIN
+app.post('/api/login', (req, res) => {
+    const { email, password } = req.body;
+    const users = readUsers();
+    const user = users.find(u => u.email === email && u.password === password);
+
+    if (!user) {
+        return res.status(401).json({ status: 'error', message: 'Ongeldige inloggegevens.' });
+    }
+
+    const { password: _, ...userReturn } = user;
+    res.json({ status: 'success', user: userReturn });
+});
+
+// UPDATE USER (Adres)
+app.put('/api/user/:id', (req, res) => {
+    const userId = req.params.id;
+    const { street, number, zipcode } = req.body;
+
+    let users = readUsers();
+    const index = users.findIndex(u => u.id === userId);
+
+    if (index === -1) {
+        return res.status(404).json({ status: 'error', message: 'Gebruiker niet gevonden.' });
+    }
+
+    users[index].address = { street, number, zipcode };
+    writeUsers(users);
+
+    const { password: _, ...userReturn } = users[index];
+    res.json({ status: 'success', user: userReturn, message: 'Adres bijgewerkt.' });
+});
+
+// DELETE USER
+app.delete('/api/user/:id', (req, res) => {
+    const userId = req.params.id;
+    let users = readUsers();
+    const newUsers = users.filter(u => u.id !== userId);
+
+    if (users.length === newUsers.length) {
+        return res.status(404).json({ status: 'error', message: 'Gebruiker niet gevonden.' });
+    }
+
+    writeUsers(newUsers);
+    res.json({ status: 'success', message: 'Account verwijderd.' });
+});
+
 // Routes
+// Bestelling plaatsen
 app.post('/api/send', async (req, res) => {
     try {
         const orderData = req.body;
