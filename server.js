@@ -194,13 +194,14 @@ async function consumeMessages(queueName = QUEUE_NAME) {
     }
 }
 
-app.get('/api/consume', async (req, res) => {
-    try {
-        const messages = await consumeMessages(QUEUE_NAME);
-        res.json({ status: 'success', data: messages });
-    } catch (error) {
-        console.error('Consumer Endpoint Error:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to consume messages' });
+app.get('/oauth/callback', (req, res) => {
+    const authCode = req.query.code; // De parameter 'code' die je zocht
+    if (authCode) {
+        console.log("Autorisatiecode ontvangen op VM:", authCode);
+        // Hier kun je de code inwisselen voor een Access Token
+        res.send("Succesvol verbonden met de VM!");
+    } else {
+        res.status(400).send("Geen autorisatiecode gevonden.");
     }
 });
 

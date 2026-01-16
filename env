@@ -1,0 +1,3 @@
+RABBITMQ_URL=amqps://admin:admin123@10.2.160.224:5671
+SECRET_KEY=IT-Business-Case-Secret
+PORT=3000
