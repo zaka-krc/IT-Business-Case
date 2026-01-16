@@ -209,7 +209,5 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset van de weergavestatus gebeurt de volgende keer in closeCart > showCartView
     }
 
-
-
     init();
 });
