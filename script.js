@@ -127,17 +127,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function showCartView() {
         cartView.style.display = 'block';
-        checkoutView.classList.remove('active');
-        checkoutView.style.display = 'none'; // Zorg dat het verborgen is
         nextBtn.textContent = 'Volgende';
     }
 
-    function showCheckoutView() {
-        cartView.style.display = 'none';
-        checkoutView.style.display = 'block';
-        nextBtn.textContent = 'Verzenden';
-        // Kleine vertraging om display:block toe te passen voordat de active-klasse voor animatie wordt toegevoegd
-        setTimeout(() => checkoutView.classList.add('active'), 10);
+    // Oude interne checkout-view is verwijderd
+
+
+    function goToCheckout() {
+        // Opslaan in localStorage
+        localStorage.setItem('techno_cart', JSON.stringify(cart));
+        window.location.href = 'checkout.html';
     }
 
     // Event Listeners (Gebeurtenisluisteraars)
@@ -145,69 +144,16 @@ document.addEventListener('DOMContentLoaded', () => {
     closeCartBtn.addEventListener('click', closeCart);
     backdrop.addEventListener('click', closeCart);
 
-    // Logica voor de belangrijkste actieknop (Volgende / Verzenden)
+    // Logica voor de belangrijkste actieknop (Volgende)
     nextBtn.addEventListener('click', () => {
-        if (checkoutView.style.display === 'block') {
-            // We zijn in de afrekenmodus, doe "Verzenden"
-            submitOrder();
-        } else {
-            // We zijn in de winkelmandmodus, doe "Volgende"
-            if (cart.length > 0) {
-                showCheckoutView();
-            }
+        if (cart.length > 0) {
+            goToCheckout();
         }
     });
 
-    backBtn.addEventListener('click', showCartView);
 
-    function submitOrder() {
-        if (!checkoutForm.checkValidity()) {
-            checkoutForm.reportValidity();
-            return;
-        }
 
-        const formData = new FormData(checkoutForm);
 
-        // Gedetailleerde bestelgegevens samenstellen
-        const orderDetails = {
-            items: cart.map(item => ({
-                id: item.id,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity
-            })),
-            customer: {
-                voornaam: formData.get('firstName'),
-                naam: formData.get('lastName'),
-                adress: formData.get('address')
-            }
-        };
-
-        // Verzenden naar de Backend Bridge
-        fetch('http://localhost:3000/api/send', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(orderDetails)
-        })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Server Request Success:', data);
-                alert(`Bedankt ${formData.get('firstName')}! Je bestelling is verzonden.`);
-
-                // Resetten
-                cart = [];
-                updateCartUI();
-                closeCart();
-                checkoutForm.reset();
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Kan geen verbinding maken met de backend service.\nZorg ervoor dat "node backend.js" draait in de terminal!');
-            });
-        // Reset van de weergavestatus gebeurt de volgende keer in closeCart > showCartView
-    }
 
 
 

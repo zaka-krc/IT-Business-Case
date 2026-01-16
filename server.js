@@ -84,7 +84,10 @@ async function sendToQueue(data) {
             customer: {
                 voornaam: customer.voornaam,
                 naam: customer.naam,
-                adress: customer.adress
+                email: customer.email,
+                straat: customer.straat,
+                huisnummer: customer.huisnummer,
+                postcode: customer.postcode
             },
             items: items.map(item => ({
                 productId: item.id,
