@@ -67,24 +67,34 @@ async function sendToQueue(data) {
             throw new Error('Invalid data structure');
         }
 
-        for (const item of items) {
-            const messagePayload = {
-                productid: item.id,
-                productname: item.name,
-                "totaal prijs": item.price * item.quantity,
-                "product hoeveelheid": item.quantity,
-                adress: customer.adress,
+        // Genereer een uniek order-ID
+        const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const totalOrderPrice = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+        const messagePayload = {
+            orderId: orderId,
+            orderDate: new Date().toISOString(),
+            customer: {
+                voornaam: customer.voornaam,
                 naam: customer.naam,
-                voornaam: customer.voornaam
-            };
+                adress: customer.adress
+            },
+            items: items.map(item => ({
+                productId: item.id,
+                productName: item.name,
+                quantity: item.quantity,
+                unitPrice: item.price,
+                totalPrice: item.price * item.quantity
+            })),
+            totalAmount: totalOrderPrice
+        };
 
-            const messageString = JSON.stringify(messagePayload);
+        const messageString = JSON.stringify(messagePayload);
 
-            // Versleutelen voor verzending
-            const encryptedMessage = CryptoJS.AES.encrypt(messageString, SECRET_KEY).toString();
+        // Versleutelen voor verzending
+        const encryptedMessage = CryptoJS.AES.encrypt(messageString, SECRET_KEY).toString();
 
-            channel.sendToQueue(QUEUE_NAME, Buffer.from(encryptedMessage));
-        }
+        channel.sendToQueue(QUEUE_NAME, Buffer.from(encryptedMessage));
 
         // Verbindung sluiten na een korte vertraging om te zorgen dat buffers leeg zijn
         setTimeout(() => {
