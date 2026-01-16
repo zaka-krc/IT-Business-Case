@@ -18,12 +18,13 @@ app.use(bodyParser.json());
 app.use(express.static('.')); // Statische bestanden serveren vanuit de huidige map
 
 // RabbitMQ Verbindings-URL
-// Formaat: amqp://gebruikersnaam:wachtwoord@ip-adres
-// Let op: 'guest' gebruiker werkt meestal alleen op localhost. Je hebt waarschijnlijk een aangepaste gebruiker nodig voor externe toegang.
-// RabbitMQ Verbindings-URL
 // Formaat: amqps://gebruikersnaam:wachtwoord@ip-adres:poort
 const RABBITMQ_URL = process.env.RABBITMQ_URL;
+
+// Exchange en Queue configuratie
+const EXCHANGE_NAME = 'salesforce_exchange';  // Consistent met backup-worker
 const QUEUE_NAME = 'salesforce_queue';
+const BACKUP_QUEUE_NAME = 'salesforce_backup_local';
 
 // SSL Opties
 const CA_CERT_PATH = './certs/ca_certificate.pem';
@@ -32,9 +33,8 @@ try {
     if (fs.existsSync(CA_CERT_PATH)) {
         sslOptions = {
             ca: [fs.readFileSync(CA_CERT_PATH)],
-            servername: 'rabbitmq-server', // Wijzig SNI om overeen te komen met de CN in het certificaat
+            servername: 'rabbitmq-server',
             checkServerIdentity: (host, cert) => {
-                // Hostnaamverificatie OVERSLAAN om IP-verbinding met eenvoudige zelfondertekende certificaten toe te staan
                 return undefined;
             }
         };
@@ -51,16 +51,22 @@ async function sendToQueue(data) {
         connection = await amqp.connect(RABBITMQ_URL, sslOptions);
         const channel = await connection.createChannel();
 
-        await channel.assertQueue(QUEUE_NAME, {
+        // Fanout exchange aanmaken
+        await channel.assertExchange(EXCHANGE_NAME, 'fanout', {
             durable: true
         });
 
-        // Bestelling samenstellen als één bericht inclusief order- en klantgegevens
-        // Verwachte datastructuur van frontend:
-        // {
-        //   items: [{ id, name, price, quantity }, ...],
-        //   customer: { voornaam, naam, adress }
-        // }
+        // Beide queues aanmaken
+        await channel.assertQueue(QUEUE_NAME, {
+            durable: true
+        });
+        await channel.assertQueue(BACKUP_QUEUE_NAME, {
+            durable: true
+        });
+
+        // Queues binden aan de fanout exchange
+        await channel.bindQueue(QUEUE_NAME, EXCHANGE_NAME, '');
+        await channel.bindQueue(BACKUP_QUEUE_NAME, EXCHANGE_NAME, '');
 
         const { items, customer } = data;
 
@@ -95,9 +101,14 @@ async function sendToQueue(data) {
         // Versleutelen voor verzending
         const encryptedMessage = CryptoJS.AES.encrypt(messageString, SECRET_KEY).toString();
 
-        channel.sendToQueue(QUEUE_NAME, Buffer.from(encryptedMessage));
+        // Publiceren naar de fanout exchange (wordt naar alle gebonden queues gestuurd)
+        channel.publish(EXCHANGE_NAME, '', Buffer.from(encryptedMessage), {
+            persistent: true
+        });
 
-        // Verbindung sluiten na een korte vertraging om te zorgen dat buffers leeg zijn
+        console.log(`Message sent to fanout exchange '${EXCHANGE_NAME}'`);
+
+        // Verbinding sluiten na een korte vertraging
         setTimeout(() => {
             if (connection) connection.close();
         }, 500);
@@ -116,7 +127,6 @@ async function sendToQueue(data) {
 app.post('/api/send', async (req, res) => {
     try {
         const orderData = req.body;
-        // console.log('Received order payload:', JSON.stringify(orderData, null, 2));
 
         // Basisvalidatie
         if (!orderData || !orderData.items || orderData.items.length === 0 || !orderData.customer) {
@@ -125,32 +135,30 @@ app.post('/api/send', async (req, res) => {
 
         await sendToQueue(orderData);
 
-        res.json({ status: 'success', message: 'Order processed and sent to RabbitMQ' });
+        res.json({ status: 'success', message: 'Order processed and sent to RabbitMQ (fanout to all queues)' });
     } catch (error) {
         console.error('Server Error:', error);
         res.status(500).json({ status: 'error', message: 'Internal Server Error' });
     }
 });
 
-// Consumentenlogica
-async function consumeMessages() {
+// Consumentenlogica - kan van elke queue lezen
+async function consumeMessages(queueName = QUEUE_NAME) {
     let connection;
     try {
         connection = await amqp.connect(RABBITMQ_URL, sslOptions);
         const channel = await connection.createChannel();
 
-        await channel.assertQueue(QUEUE_NAME, { durable: true });
+        await channel.assertQueue(queueName, { durable: true });
 
         const messages = [];
         let msg;
 
         // Ophalen van 1 bericht per keer
         for (let i = 0; i < 1; i++) {
-            msg = await channel.get(QUEUE_NAME);
+            msg = await channel.get(queueName);
             if (!msg) break;
 
-            // Retourneer de ruwe versleutelde string (cijfertekst)
-            // Nu server-side ontsleuteling (veiliger)
             const content = msg.content.toString();
 
             try {
@@ -165,7 +173,7 @@ async function consumeMessages() {
                 messages.push({ error: "Failed to decrypt message" });
             }
 
-            channel.ack(msg); // Bericht bevestigen om uit de wachtrij te verwijderen
+            channel.ack(msg);
         }
 
         setTimeout(() => {
@@ -185,7 +193,7 @@ async function consumeMessages() {
 
 app.get('/api/consume', async (req, res) => {
     try {
-        const messages = await consumeMessages();
+        const messages = await consumeMessages(QUEUE_NAME);
         res.json({ status: 'success', data: messages });
     } catch (error) {
         console.error('Consumer Endpoint Error:', error);
@@ -193,8 +201,21 @@ app.get('/api/consume', async (req, res) => {
     }
 });
 
+// Extra endpoint om van de backup queue te lezen
+app.get('/api/consume/backup', async (req, res) => {
+    try {
+        const messages = await consumeMessages(BACKUP_QUEUE_NAME);
+        res.json({ status: 'success', data: messages });
+    } catch (error) {
+        console.error('Backup Consumer Endpoint Error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to consume backup messages' });
+    }
+});
+
 // Server Starten
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`RabbitMQ Target: ${RABBITMQ_URL}`);
+    console.log(`Fanout Exchange: ${EXCHANGE_NAME}`);
+    console.log(`Queues: ${QUEUE_NAME}, ${BACKUP_QUEUE_NAME}`);
 });
