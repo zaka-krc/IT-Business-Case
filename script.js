@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => checkoutView.classList.add('active'), 10);
     }
 
-    // Event Listeners
+    // Event Listeners (Gebeurtenisluisteraars)
     cartIcon.addEventListener('click', openCart);
     closeCartBtn.addEventListener('click', closeCart);
     backdrop.addEventListener('click', closeCart);

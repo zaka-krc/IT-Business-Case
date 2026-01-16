@@ -55,7 +55,7 @@ async function sendToQueue(data) {
             durable: true
         });
 
-        // Bestelling splitsen in individuele productberichten
+        // Bestelling samenstellen als één bericht inclusief order- en klantgegevens
         // Verwachte datastructuur van frontend:
         // {
         //   items: [{ id, name, price, quantity }, ...],
