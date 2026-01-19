@@ -47,24 +47,24 @@ document.addEventListener('DOMContentLoaded', () => {
     checkoutForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const formData = new FormData(checkoutForm);
-
-        const orderData = {
-            totalAmount: total, // Cruciaal voor Salesforce
-            items: cart.map(item => ({
-                id: item.id,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity
-            })),
-            customer: {
-                voornaam: formData.get('firstName'),
-                naam: formData.get('lastName'),
-                email: formData.get('email'),
-                straat: formData.get('street'),
-                huisnummer: formData.get('houseNumber'),
-                postcode: formData.get('zipcode')
-            }
-        };
+// checkout.js
+const orderData = {
+    totalAmount: total, // NU TOEGEVOEGD: Salesforce heeft dit nodig
+    items: cart.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity
+    })),
+    customer: {
+        voornaam: formData.get('firstName'),
+        naam: formData.get('lastName'),
+        email: formData.get('email'),
+        straat: formData.get('street'),
+        huisnummer: formData.get('houseNumber'),
+        postcode: formData.get('zipcode')
+    }
+};
 
         fetch('https://10.2.160.224:3000/api/send', {
             method: 'POST',

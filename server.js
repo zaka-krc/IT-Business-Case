@@ -41,23 +41,21 @@ app.use(bodyParser.json());
 app.use(express.static('.'));
 
 // --- 3. AUTOMATISCHE SALESFORCE WORKER ---
+// server.js - Voeg deze functie toe boven je routes
 const startSalesforceWorker = async () => {
     if (!sfConnection) return;
-
     try {
         const connection = await amqp.connect(RABBITMQ_URL, sslOptions);
         const channel = await connection.createChannel();
         await channel.assertQueue(QUEUE_NAME, { durable: true });
 
-        console.log("Salesforce Worker gestart: Wachten op bestellingen...");
+        console.log("Salesforce Worker gestart...");
 
         channel.consume(QUEUE_NAME, async (msg) => {
             if (msg !== null) {
                 try {
                     const bytes = CryptoJS.AES.decrypt(msg.content.toString(), SECRET_KEY);
                     const data = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-
-                    console.log("Verwerken naar Salesforce:", data.orderId);
 
                     await sfConnection.sobject("Order__c").create({
                         Name: data.orderId,
@@ -67,29 +65,25 @@ const startSalesforceWorker = async () => {
                     });
 
                     channel.ack(msg);
-                    console.log("Bestelling succesvol naar Salesforce verzonden.");
+                    console.log("Bestelling succesvol naar Salesforce verzonden:", data.orderId);
                 } catch (err) {
-                    console.error("Fout bij verwerken bericht:", err.message);
+                    console.error("Verwerkingsfout:", err.message);
                 }
             }
         });
     } catch (error) {
-        console.error("Worker connectiefout:", error.message);
+        console.error("Connectiefout worker:", error.message);
     }
 };
 
-// --- 4. ROUTES ---
-app.get('/api/auth/salesforce', (req, res) => {
-    res.redirect(oauth2.getAuthorizationUrl({ scope: 'api id web refresh_token' }));
-});
-
+// Pas je callback route aan zodat de worker start na inloggen
 app.get('/oauth/callback', async (req, res) => {
     const conn = new jsforce.Connection({ oauth2: oauth2 });
     try {
         await conn.authorize(req.query.code);
         sfConnection = conn;
-        startSalesforceWorker(); // Start automatisch de verwerking
-        res.send("<h1>Verbonden!</h1><p>De VM stuurt nu automatisch bestellingen naar Salesforce.</p>");
+        startSalesforceWorker(); // START DE AUTOMATISCHE VERWERKING HIER
+        res.send("<h1>Verbonden!</h1><p>Bestellingen worden nu automatisch verzonden.</p>");
     } catch (err) {
         res.status(500).send("Fout: " + err.message);
     }
