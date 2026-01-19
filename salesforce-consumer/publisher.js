@@ -1,63 +1,36 @@
+require('dotenv').config();
+const express = require('express');
 const amqp = require('amqplib');
+const cors = require('cors');
 
-// ========================================
-// PUBLIER UNE COMMANDE DANS RABBITMQ
-// ========================================
-async function publishOrder(orderData) {
-  try {
-    // Connexion à RabbitMQ
-    const connection = await amqp.connect('amqp://localhost');
+const app = express();
+app.use(express.json());
+app.use(cors());
+
+const QUEUE_NAME = 'orders_queue';
+
+async function sendToRabbitMQ(orderData) {
+    const connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://localhost');
     const channel = await connection.createChannel();
+    await channel.assertQueue(QUEUE_NAME, { durable: true });
     
-    const queue = 'orders_queue';
-    
-    // Créer la queue si elle n'existe pas
-    await channel.assertQueue(queue, { durable: true });
-    
-    // Publier le message
     channel.sendToQueue(
-      queue,
-      Buffer.from(JSON.stringify(orderData)),
-      { persistent: true }
+        QUEUE_NAME,
+        Buffer.from(JSON.stringify(orderData)),
+        { persistent: true }
     );
     
-    console.log('✅ Commande publiée:', orderData.orderNumber);
-    
-    // Fermer la connexion
-    setTimeout(() => {
-      connection.close();
-    }, 500);
-  } catch (error) {
-    console.error('❌ Erreur publication:', error.message);
-  }
+    console.log('✅ Message envoyé à RabbitMQ:', orderData.orderNumber);
+    setTimeout(() => connection.close(), 500);
 }
 
-// ========================================
-// EXEMPLE D'UTILISATION
-// ========================================
+app.post('/api/order', async (req, res) => {
+    try {
+        await sendToRabbitMQ(req.body);
+        res.status(200).json({ status: 'success', message: 'Commande en cours de traitement' });
+    } catch (error) {
+        res.status(500).json({ status: 'error', message: error.message });
+    }
+});
 
-// Exemple 1 : Commande simple
-const order1 = {
-  orderNumber: 'CMD-001',
-  customerName: 'Marie Dubois',
-  customerEmail: 'marie.dubois@example.com',
-  orderDate: '2026-01-19',
-  totalAmount: 149.99
-};
-
-// Exemple 2 : Autre commande
-const order2 = {
-  orderNumber: 'CMD-002',
-  customerName: 'Pierre Martin',
-  customerEmail: 'pierre.martin@example.com',
-  orderDate: '2026-01-19',
-  totalAmount: 299.50
-};
-
-// Publier les commandes
-publishOrder(order1);
-
-// Attendre un peu puis publier la deuxième
-setTimeout(() => {
-  publishOrder(order2);
-}, 1000);
+app.listen(3000, () => console.log('🚀 Serveur Publisher sur http://localhost:3000'));
