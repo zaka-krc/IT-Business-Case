@@ -35,6 +35,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function init() {
         renderProducts();
         updateCartUI();
+        checkUserStatus();
+    }
+
+    function checkUserStatus() {
+        const userJson = localStorage.getItem('user');
+        const userLabel = document.getElementById('user-label');
+        const userActions = document.getElementById('user-actions');
+
+        if (userJson) {
+            const user = JSON.parse(userJson);
+            userLabel.textContent = user.firstName;
+            userActions.innerHTML = `
+                <a href="profile.html" style="text-decoration: none; color: var(--dark-bg); font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                    <ion-icon name="person-circle-outline" size="large" style="color: var(--primary-color);"></ion-icon>
+                    <span>${user.firstName}</span>
+                </a>
+            `;
+        }
     }
 
     // Producten Renderen

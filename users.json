@@ -1,0 +1,14 @@
+[
+  {
+    "id": "1768573598419",
+    "email": "yaya250@live.fr",
+    "password": "azerty",
+    "firstName": "Yazid",
+    "lastName": "El Yazghi",
+    "address": {
+      "street": "Rue du Paruck",
+      "number": "56",
+      "zipcode": "1080"
+    }
+  }
+]
