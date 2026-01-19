@@ -1,3 +1,12 @@
 RABBITMQ_URL=amqps://admin:admin123@10.2.160.224:5671
 SECRET_KEY=IT-Business-Case-Secret
 PORT=3000
+SF_CONSUMER_KEY=votre_consumer_key_ici
+
+SF_CONSUMER_SECRET=votre_consumer_secret_ici
+
+SF_LOGIN_URL=https://login.salesforce.com
+
+SF_CALLBACK_URL=https://10.2.160.224:3000/oauth/callback
+
+#
