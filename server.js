@@ -42,6 +42,7 @@ app.use(express.static('.'));
 
 // --- 3. AUTOMATISCHE SALESFORCE WORKER ---
 // server.js - Voeg deze functie toe boven je routes
+// Voeg deze functie toe boven je routes in server.js
 const startSalesforceWorker = async () => {
     if (!sfConnection) return;
     try {
@@ -49,7 +50,7 @@ const startSalesforceWorker = async () => {
         const channel = await connection.createChannel();
         await channel.assertQueue(QUEUE_NAME, { durable: true });
 
-        console.log("Salesforce Worker gestart...");
+        console.log("Salesforce Worker gestart: Bestellingen worden nu AUTOMATISCH verzonden.");
 
         channel.consume(QUEUE_NAME, async (msg) => {
             if (msg !== null) {
@@ -65,45 +66,22 @@ const startSalesforceWorker = async () => {
                     });
 
                     channel.ack(msg);
-                    console.log("Bestelling succesvol naar Salesforce verzonden:", data.orderId);
-                } catch (err) {
-                    console.error("Verwerkingsfout:", err.message);
-                }
+                    console.log("Order verzonden naar Salesforce:", data.orderId);
+                } catch (err) { console.error("Verwerkingsfout:", err.message); }
             }
         });
-    } catch (error) {
-        console.error("Connectiefout worker:", error.message);
-    }
+    } catch (error) { console.error("Worker connectiefout:", error.message); }
 };
 
-// Pas je callback route aan zodat de worker start na inloggen
+// Pas je callback route aan:
 app.get('/oauth/callback', async (req, res) => {
     const conn = new jsforce.Connection({ oauth2: oauth2 });
     try {
         await conn.authorize(req.query.code);
         sfConnection = conn;
-        startSalesforceWorker(); // START DE AUTOMATISCHE VERWERKING HIER
-        res.send("<h1>Verbonden!</h1><p>Bestellingen worden nu automatisch verzonden.</p>");
-    } catch (err) {
-        res.status(500).send("Fout: " + err.message);
-    }
-});
-
-app.post('/api/send', async (req, res) => {
-    try {
-        const connection = await amqp.connect(RABBITMQ_URL, sslOptions);
-        const channel = await connection.createChannel();
-        await channel.assertQueue(QUEUE_NAME, { durable: true });
-
-        const orderData = { ...req.body, orderId: `ORD-${Date.now()}` };
-        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(orderData), SECRET_KEY).toString();
-        
-        channel.sendToQueue(QUEUE_NAME, Buffer.from(encrypted));
-        res.json({ status: 'success', orderId: orderData.orderId });
-        setTimeout(() => connection.close(), 500);
-    } catch (error) {
-        res.status(500).json({ status: 'error', message: error.message });
-    }
+        startSalesforceWorker(); // START DE AUTOMATISCHE WORKER
+        res.send("<h1>Verbonden!</h1><p>Bestellingen worden nu automatisch naar Salesforce gestuurd.</p>");
+    } catch (err) { res.status(500).send("Fout: " + err.message); }
 });
 
 // Gebruikersbeheer routes behouden (register/login/put)

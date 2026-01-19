@@ -48,23 +48,54 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const formData = new FormData(checkoutForm);
 // checkout.js
-const orderData = {
-    totalAmount: total, // NU TOEGEVOEGD: Salesforce heeft dit nodig
-    items: cart.map(item => ({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity
-    })),
-    customer: {
-        voornaam: formData.get('firstName'),
-        naam: formData.get('lastName'),
-        email: formData.get('email'),
-        straat: formData.get('street'),
-        huisnummer: formData.get('houseNumber'),
-        postcode: formData.get('zipcode')
-    }
-};
+document.addEventListener('DOMContentLoaded', () => {
+    const orderItemsList = document.getElementById('order-items-list');
+    const orderTotalDisplay = document.getElementById('order-total-display');
+    const checkoutForm = document.getElementById('checkout-form');
+
+    let cart = JSON.parse(localStorage.getItem('techno_cart') || '[]');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+    let total = 0;
+    orderItemsList.innerHTML = cart.map(item => {
+        const itemTotal = item.price * item.quantity;
+        total += itemTotal;
+        return `<div class="order-row"><span>${item.quantity}x ${item.name}</span><span>€ ${itemTotal.toFixed(2)}</span></div>`;
+    }).join('');
+    orderTotalDisplay.textContent = `Totaal: € ${total.toFixed(2)}`;
+
+    checkoutForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const formData = new FormData(checkoutForm);
+
+        const orderData = {
+            totalAmount: total, // NU TOEGEVOEGD
+            items: cart.map(item => ({ id: item.id, name: item.name, price: item.price, quantity: item.quantity })),
+            customer: {
+                voornaam: formData.get('firstName'),
+                naam: formData.get('lastName'),
+                email: formData.get('email'),
+                straat: formData.get('street'),
+                huisnummer: formData.get('houseNumber'),
+                postcode: formData.get('zipcode')
+            }
+        };
+
+        fetch('https://10.2.160.224:3000/api/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderData)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Bestelling geplaatst!');
+                localStorage.removeItem('techno_cart');
+                window.location.href = 'index.html';
+            }
+        });
+    });
+});
 
         fetch('https://10.2.160.224:3000/api/send', {
             method: 'POST',
