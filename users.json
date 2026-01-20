@@ -10,5 +10,17 @@
       "number": "56",
       "zipcode": "1080"
     }
+  },
+  {
+    "id": "1768918739219",
+    "email": "test@test.com",
+    "password": "test",
+    "firstName": "test",
+    "lastName": "test",
+    "address": {
+      "street": "",
+      "number": "",
+      "zipcode": ""
+    }
   }
 ]

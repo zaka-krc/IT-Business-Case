@@ -1,15 +1,12 @@
-name: CI Build and run
+name: Deploy to VM
 
 on:
   push:
     branches:
-      - main
-  pull_request:
-    branches:
-      - main
+      - main  # De actie start als je naar de main branch pusht
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,18 +17,25 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-          cache: 'npm'
 
-      # Stap 1: Hoofd Backend (bestell-app-backend)
-      - name: Install dependencies (Root Backend)
-        run: npm install
+      - name: Install dependencies
+        run: npm install  # Installeert express, amqplib, etc.
 
-      # Stap 2: Salesforce Consumer
-      - name: Install dependencies (Salesforce Consumer)
-        run: |
-          cd salesforce-consumer
-          npm install
-
-      # Optioneel: Voeg hier testcommando's toe als je die hebt
-      # - name: Run Tests
-      #   run: npm test
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VM_IP }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd /pad/naar/jouw/project
+            git pull origin main
+            npm install --production
+            
+            # Update .env bestand op de VM
+            echo "RABBITMQ_URL=${{ secrets.RABBITMQ_URL }}" > .env
+            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+            echo "PORT=3000" >> .env
+            
+            # Herstart de server (gebruik pm2 voor continuïteit)
+            pm2 restart server.js || pm2 start server.js --name "order-app"
