@@ -81,12 +81,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-<<<<<<< HEAD
-        fetch('https://10.2.160.224:3000/api/send', {
-=======
         // Send to Backend
         fetch('http://localhost:3000/api/send', {
->>>>>>> parent of f3e7394 (saleforces update)
+parent of f3e7394 (saleforces update)
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(orderData)
