@@ -13,6 +13,11 @@ const PORT = 3000;
 const SECRET_KEY = process.env.SECRET_KEY || 'default-dev-secret';
 const USERS_FILE = './users.json';
 
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static('.')); // Statische bestanden serveren vanuit de huidige map
+
 // RabbitMQ Verbindings-URL
 // Formaat: amqps://gebruikersnaam:wachtwoord@ip-adres:poort
 const RABBITMQ_URL = process.env.RABBITMQ_URL;
@@ -314,4 +319,3 @@ app.listen(PORT, () => {
     console.log(`Fanout Exchange: ${EXCHANGE_NAME}`);
     console.log(`Queues: ${QUEUE_NAME}, ${BACKUP_QUEUE_NAME}`);
 });
->>>>>>> parent of f3e7394 (saleforces update)
