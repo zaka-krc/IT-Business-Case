@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(loginForm);
         const payload = Object.fromEntries(formData);
 
-        fetch('https://10.2.160.224:3000/api/login', {
+        fetch('http://localhost:3000/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        fetch('https://10.2.160.224:3000/api/register', {
+        fetch('http://localhost:3000/api/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const number = document.getElementById('p-number').value;
         const zipcode = document.getElementById('p-zipcode').value;
 
-        fetch(`https://10.2.160.224:3000/api/user/${user.id}`, {
+        fetch(`http://localhost:3000/api/user/${user.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ street, number, zipcode })
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // DELETE ACCOUNT
     document.getElementById('delete-account-btn').addEventListener('click', () => {
         if (confirm('Weet je zeker dat je je account wilt verwijderen?')) {
-            fetch(`https://10.2.160.224:3000/api/user/${user.id}`, {
+            fetch(`http://localhost:3000/api/user/${user.id}`, {
                 method: 'DELETE'
             })
                 .then(res => res.json())
