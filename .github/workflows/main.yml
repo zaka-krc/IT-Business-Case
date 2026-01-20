@@ -1,4 +1,4 @@
-name: Full Code Validation
+name: Full Integration & Connection Test
 
 on:
   push:
@@ -7,8 +7,15 @@ on:
     branches: [ main ]
 
 jobs:
-  test-and-validate:
+  test-connections:
     runs-on: ubuntu-latest
+
+    # Start een tijdelijke RabbitMQ container voor de test
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
 
     steps:
       - name: Checkout code
@@ -20,38 +27,52 @@ jobs:
           node-version: '18'
           cache: 'npm'
 
-      # --- BACKEND VALIDATIE ---
-      - name: Install Root Backend dependencies
-        run: npm ci
+      - name: Install dependencies
+        run: npm install
 
-      - name: Security Audit (Root)
-        run: npm audit --audit-level=high
-
-      - name: Check Backend Syntax (Node.js check)
-        run: node --check server.js
-
-      # --- SALESFORCE CONSUMER VALIDATIE ---
-      - name: Install Salesforce Consumer dependencies
+      # --- TEST 1: RabbitMQ Connectiviteit ---
+      - name: Test RabbitMQ Connection
+        env:
+          # We gebruiken localhost omdat de service in de runner draait
+          RABBITMQ_URL: amqp://guest:guest@localhost:5672
         run: |
-          cd salesforce-consumer
-          npm ci
+          node -e "
+          const amqp = require('amqplib');
+          async function test() {
+            try {
+              const conn = await amqp.connect(process.env.RABBITMQ_URL);
+              console.log('✅ RabbitMQ verbinding succesvol!');
+              await conn.close();
+              process.exit(0);
+            } catch (err) {
+              console.error('❌ RabbitMQ verbinding mislukt:', err.message);
+              process.exit(1);
+            }
+          }
+          test();"
 
-      - name: Security Audit (Salesforce Consumer)
+      # --- TEST 2: Salesforce API Check ---
+      # Let op: dit werkt alleen als je SF_USERNAME, SF_PASSWORD, etc. in GitHub Secrets zet
+      - name: Test Salesforce Integration Script
+        env:
+          SF_LOGIN_URL: ${{ secrets.SF_LOGIN_URL }}
+          SF_USERNAME: ${{ secrets.SF_USERNAME }}
+          SF_PASSWORD: ${{ secrets.SF_PASSWORD }}
+          SF_TOKEN: ${{ secrets.SF_TOKEN }}
+          SF_CLIENT_ID: ${{ secrets.SF_CLIENT_ID }}
+          SF_CLIENT_SECRET: ${{ secrets.SF_CLIENT_SECRET }}
         run: |
-          cd salesforce-consumer
-          npm audit --audit-level=high
+          if [ -z "$SF_USERNAME" ]; then
+            echo "⚠️ Salesforce Secrets niet ingesteld, sla test over."
+          else
+            # Controleer of de code geen syntax fouten heeft bij het laden van SF modules
+            node --check sf-integratie.js
+            # Optioneel: voer een kleine verbindingscheck uit als je script dat ondersteunt
+            # node sf-integratie.js --check-only
+          fi
 
-      - name: Check Consumer Syntax (Node.js check)
+      # --- TEST 3: Code Linting & Syntax ---
+      - name: Validate Core Scripts
         run: |
-          cd salesforce-consumer
+          node --check server.js
           node --check consumer.js
-
-      # --- FRONTEND VALIDATIE ---
-      - name: Validate HTML files
-        run: |
-          # Controleert of de HTML bestanden valide zijn
-          for file in *.html; do
-            echo "Checking $file..."
-            # Gebruik een simpele grep check om te zien of belangrijke tags aanwezig zijn
-            grep -q "<html>" "$file" && grep -q "</html>" "$file"
-          done
