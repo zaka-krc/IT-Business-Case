@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Applicatietoestand
-    // Applicatietoestand
     let products = []; // Wordt nu dynamisch geladen
 
     let cart = [];
