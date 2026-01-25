@@ -1,17 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Applicatietoestand
-    const products = [
-        { id: 1, name: 'Premium Laptop Pro', price: 999.00, image: 'images/laptop.png' },
-        { id: 2, name: 'Smartphone X', price: 799.00, image: 'images/smartphone.png' },
-        { id: 3, name: 'Noise-Cancel Hoofdtelefoon', price: 299.00, image: 'images/headphones.png' },
-        { id: 4, name: 'Smartwatch Series 5', price: 199.00, image: 'images/smartwatch.png' },
-        { id: 5, name: 'UltraTabs 10', price: 450.00, image: 'images/smartphone.png' },
-        { id: 6, name: 'Gaming Laptop', price: 1499.00, image: 'images/laptop.png' },
-        { id: 7, name: 'Draadloze Oordopjes', price: 129.00, image: 'images/headphones.png' },
-        { id: 8, name: '4K Action Camera', price: 349.00, image: 'images/smartphone.png' },
-        { id: 9, name: 'Fitness Tracker', price: 89.00, image: 'images/smartwatch.png' },
-        { id: 10, name: 'E-Reader Touch', price: 119.00, image: 'images/smartphone.png' }
-    ];
+    // Applicatietoestand
+    let products = []; // Wordt nu dynamisch geladen
 
     let cart = [];
 
@@ -32,10 +22,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const checkoutForm = document.getElementById('order-form');
 
     // Initialisatie
-    function init() {
-        renderProducts();
+    async function init() {
+        await fetchProducts();
         updateCartUI();
         checkUserStatus();
+    }
+
+    async function fetchProducts() {
+        try {
+            const response = await fetch('http://localhost:3000/api/products');
+            products = await response.json();
+            renderProducts();
+        } catch (error) {
+            console.error('Failed to fetch products:', error);
+            productGrid.innerHTML = '<p style="text-align:center; color:red;">Kan producten niet laden.</p>';
+        }
     }
 
     function checkUserStatus() {
@@ -57,18 +58,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Producten Renderen
     function renderProducts() {
-        productGrid.innerHTML = products.map(product => `
+        productGrid.innerHTML = products.map(product => {
+            const isOutOfStock = product.stock <= 0;
+            const btnClass = isOutOfStock ? 'add-btn disabled' : 'add-btn';
+            const btnText = isOutOfStock ? 'Out of Stock' : 'Toevoegen +';
+            const btnAttr = isOutOfStock ? 'disabled' : `onclick="addToCart(${product.id})"`;
+            const stockColor = isOutOfStock ? 'color: red;' : 'color: green;';
+
+            return `
             <div class="product-card">
                 <img src="${product.image}" alt="${product.name}" class="product-image">
                 <div class="product-info">
                     <h3 class="product-name">${product.name}</h3>
-                    <div class="product-price">€ ${product.price.toFixed(2)}</div>
-                    <button class="add-btn" onclick="addToCart(${product.id})">
-                        Toevoegen +
+                    <div class="product-price">€ ${Number(product.price).toFixed(2)}</div>
+                    <div style="font-size: 0.8rem; margin-bottom: 0.5rem; ${stockColor}">
+                        Voorraad: ${product.stock}
+                    </div>
+                    <button class="${btnClass}" ${btnAttr} style="${isOutOfStock ? 'background-color: #ccc; cursor: not-allowed;' : ''}">
+                        ${btnText}
                     </button>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     }
 
     // Winkelmand Logica
@@ -77,9 +88,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const existingItem = cart.find(item => item.id === productId);
 
         if (existingItem) {
-            existingItem.quantity += 1;
+            if (existingItem.quantity < product.stock) {
+                existingItem.quantity += 1;
+            } else {
+                alert('Niet meer voorraad beschikbaar!');
+                return;
+            }
         } else {
-            cart.push({ ...product, quantity: 1 });
+            if (product.stock > 0) {
+                cart.push({ ...product, quantity: 1 });
+            }
         }
 
         updateCartUI();
