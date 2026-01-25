@@ -5,6 +5,7 @@ const cors = require('cors');
 const amqp = require('amqplib');
 const CryptoJS = require("crypto-js");
 const fs = require('fs');
+const db = require('./database');
 
 const app = express();
 const PORT = 3000;
@@ -224,22 +225,47 @@ app.delete('/api/user/:id', (req, res) => {
 
 // Routes
 // Bestelling plaatsen
-app.post('/api/send', async (req, res) => {
-    try {
-        const orderData = req.body;
+app.post('/api/send', (req, res) => {
+    const orderData = req.body;
 
-        // Basisvalidatie
-        if (!orderData || !orderData.items || orderData.items.length === 0 || !orderData.customer) {
-            return res.status(400).json({ status: 'error', message: 'Missing required fields or empty cart' });
+    // 1. Validatie
+    if (!orderData || !orderData.items || orderData.items.length === 0 || !orderData.customer) {
+        return res.status(400).json({ status: 'error', message: 'Mandje is leeg of gegevens ontbreken' });
+    }
+
+    // We pakken het eerste item uit de bestelling om de voorraad te checken
+    const item = orderData.items[0]; 
+
+    // 2. SQL Query: Verminder de voorraad alleen als er genoeg is (stock >= quantity)
+    const sql = `UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`;
+
+    db.run(sql, [item.quantity, item.id, item.quantity], async function(err) {
+        if (err) {
+            console.error("Database fout:", err.message);
+            return res.status(500).json({ status: 'error', message: 'Interne database fout' });
         }
 
-        await sendToQueue(orderData);
+        // 'this.changes' is 0 als de WHERE clause niet klopte (dus niet genoeg voorraad)
+        if (this.changes === 0) {
+            return res.status(400).json({ 
+                status: 'error', 
+                message: `Helaas, niet genoeg voorraad voor ${item.name}!` 
+            });
+        }
 
-        res.json({ status: 'success', message: 'Order processed and sent to RabbitMQ (fanout to all queues)' });
-    } catch (error) {
-        console.error('Server Error:', error);
-        res.status(500).json({ status: 'error', message: 'Internal Server Error' });
-    }
+        // 3. Voorraad is afgeschreven, nu pas naar RabbitMQ sturen
+        try {
+            console.log(`✅ Voorraad gereserveerd voor ${item.name}. Bericht sturen naar RabbitMQ...`);
+            await sendToQueue(orderData);
+            res.json({ 
+                status: 'success', 
+                message: 'Bestelling gelukt! Voorraad is bijgewerkt en data is onderweg naar Salesforce.' 
+            });
+        } catch (error) {
+            console.error('RabbitMQ fout:', error);
+            res.status(500).json({ status: 'error', message: 'Database bijgewerkt, maar RabbitMQ verbinding mislukt.' });
+        }
+    });
 });
 
 // Consumentenlogica - kan van elke queue lezen
@@ -318,4 +344,11 @@ app.listen(PORT, () => {
     console.log(`RabbitMQ Target: ${RABBITMQ_URL}`);
     console.log(`Fanout Exchange: ${EXCHANGE_NAME}`);
     console.log(`Queues: ${QUEUE_NAME}, ${BACKUP_QUEUE_NAME}`);
+});
+
+app.get('/api/products', (req, res) => {
+    db.all("SELECT * FROM products", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
 });
