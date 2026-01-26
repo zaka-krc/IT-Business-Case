@@ -5,9 +5,7 @@ const cors = require('cors');
 const amqp = require('amqplib');
 const CryptoJS = require("crypto-js");
 const fs = require('fs');
-const mysql = require('mysql2/promise');
-const bcrypt = require('bcrypt');
-const crypto = require('crypto');
+const db = require('./database');
 
 const app = express();
 const PORT = 3000;
@@ -223,109 +221,49 @@ app.delete('/api/user/:id', async (req, res) => {
     }
 });
 
-// --- ORDERS & RABBITMQ ---
+// Routes
+// Bestelling plaatsen
+app.post('/api/send', (req, res) => {
+    const orderData = req.body;
 
-// RabbitMQ Sender
-async function sendToQueue(data) {
-    let connection;
-    try {
-        connection = await amqp.connect(RABBITMQ_URL, sslOptions);
-        const channel = await connection.createChannel();
-
-        await channel.assertExchange(EXCHANGE_NAME, 'fanout', { durable: true });
-        await channel.assertQueue(QUEUE_NAME, { durable: true });
-        await channel.assertQueue(BACKUP_QUEUE_NAME, { durable: true });
-        await channel.bindQueue(QUEUE_NAME, EXCHANGE_NAME, '');
-        await channel.bindQueue(BACKUP_QUEUE_NAME, EXCHANGE_NAME, '');
-
-        const { items, customer, orderId, totalOrderPrice } = data;
-
-        const messagePayload = {
-            orderId: orderId,
-            orderDate: new Date().toISOString(),
-            customer: customer,
-            items: items,
-            totalAmount: totalOrderPrice
-        };
-
-        const encryptedMessage = CryptoJS.AES.encrypt(JSON.stringify(messagePayload), SECRET_KEY).toString();
-
-        channel.publish(EXCHANGE_NAME, '', Buffer.from(encryptedMessage), { persistent: true });
-
-        console.log(`Message sent to ${EXCHANGE_NAME} for Order ${orderId}`);
-
-        setTimeout(() => { if (connection) connection.close(); }, 500);
-        return true;
-    } catch (error) {
-        console.error('RabbitMQ Error:', error);
-        if (connection) try { connection.close(); } catch (e) { }
-        throw error;
+    // 1. Validatie
+    if (!orderData || !orderData.items || orderData.items.length === 0 || !orderData.customer) {
+        return res.status(400).json({ status: 'error', message: 'Mandje is leeg of gegevens ontbreken' });
     }
-}
 
-// Bestelling plaatsen (Met Transactie & Stock Check)
-app.post('/api/send', async (req, res) => {
-    const connection = await pool.getConnection();
-    try {
-        await connection.beginTransaction();
+    // We pakken het eerste item uit de bestelling om de voorraad te checken
+    const item = orderData.items[0]; 
 
-        const { items, customer } = req.body;
+    // 2. SQL Query: Verminder de voorraad alleen als er genoeg is (stock >= quantity)
+    const sql = `UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`;
 
-        if (!items || items.length === 0 || !customer) {
-            throw new Error('Invalid order data');
+    db.run(sql, [item.quantity, item.id, item.quantity], async function(err) {
+        if (err) {
+            console.error("Database fout:", err.message);
+            return res.status(500).json({ status: 'error', message: 'Interne database fout' });
         }
 
-        // Valideer en update stock voor elk item
-        const processedItems = [];
-        let totalOrderPrice = 0;
-
-        for (const item of items) {
-            // Lock de row voor update
-            const [rows] = await connection.execute('SELECT * FROM products WHERE id = ? FOR UPDATE', [item.id]);
-
-            if (rows.length === 0) throw new Error(`Product ${item.id} niet gevonden`);
-            const product = rows[0];
-
-            if (product.stock < item.quantity) {
-                throw new Error(`Onvoldoende voorraad voor ${product.name}. Beschikbaar: ${product.stock}`);
-            }
-
-            // Update stock
-            await connection.execute('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.id]);
-
-            processedItems.push({
-                productId: product.id,
-                salesforceId: product.salesforce_external_id,
-                productName: product.name,
-                quantity: item.quantity,
-                unitPrice: product.price,
-                totalPrice: product.price * item.quantity
+        // 'this.changes' is 0 als de WHERE clause niet klopte (dus niet genoeg voorraad)
+        if (this.changes === 0) {
+            return res.status(400).json({ 
+                status: 'error', 
+                message: `Helaas, niet genoeg voorraad voor ${item.name}!` 
             });
-            totalOrderPrice += product.price * item.quantity;
         }
 
-        // Als DB updates gelukt zijn, stuur naar RabbitMQ
-        // Gebruik salesforce_external_id van user als die er is (check via email in DB of stuur gewoon mee van frontend als die geupdate is)
-
-        const orderId = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-        await sendToQueue({
-            orderId,
-            customer,
-            items: processedItems,
-            totalOrderPrice
-        });
-
-        await connection.commit();
-        res.json({ status: 'success', message: 'Order processed successfully', orderId });
-
-    } catch (error) {
-        await connection.rollback();
-        console.error('Order Transaction Error:', error);
-        res.status(500).json({ status: 'error', message: error.message || 'Order failed' });
-    } finally {
-        connection.release();
-    }
+        // 3. Voorraad is afgeschreven, nu pas naar RabbitMQ sturen
+        try {
+            console.log(`✅ Voorraad gereserveerd voor ${item.name}. Bericht sturen naar RabbitMQ...`);
+            await sendToQueue(orderData);
+            res.json({ 
+                status: 'success', 
+                message: 'Bestelling gelukt! Voorraad is bijgewerkt en data is onderweg naar Salesforce.' 
+            });
+        } catch (error) {
+            console.error('RabbitMQ fout:', error);
+            res.status(500).json({ status: 'error', message: 'Database bijgewerkt, maar RabbitMQ verbinding mislukt.' });
+        }
+    });
 });
 
 // Consumer Endpoints (Ongewijzigd, alleen connectie fix)
@@ -366,5 +304,14 @@ app.get('/api/consume', async (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
-    console.log('Connected to MySQL');
+    console.log(`RabbitMQ Target: ${RABBITMQ_URL}`);
+    console.log(`Fanout Exchange: ${EXCHANGE_NAME}`);
+    console.log(`Queues: ${QUEUE_NAME}, ${BACKUP_QUEUE_NAME}`);
+});
+
+app.get('/api/products', (req, res) => {
+    db.all("SELECT * FROM products", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
 });

@@ -1,6 +1,31 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Applicatietoestand
-    let products = []; // Wordt nu dynamisch geladen
+    /*const products = [
+        { id: 1, name: 'Premium Laptop Pro', price: 999.00, image: 'images/laptop.png' },
+        { id: 2, name: 'Smartphone X', price: 799.00, image: 'images/smartphone.png' },
+        { id: 3, name: 'Noise-Cancel Hoofdtelefoon', price: 299.00, image: 'images/headphones.png' },
+        { id: 4, name: 'Smartwatch Series 5', price: 199.00, image: 'images/smartwatch.png' },
+        { id: 5, name: 'UltraTabs 10', price: 450.00, image: 'images/smartphone.png' },
+        { id: 6, name: 'Gaming Laptop', price: 1499.00, image: 'images/laptop.png' },
+        { id: 7, name: 'Draadloze Oordopjes', price: 129.00, image: 'images/headphones.png' },
+        { id: 8, name: '4K Action Camera', price: 349.00, image: 'images/smartphone.png' },
+        { id: 9, name: 'Fitness Tracker', price: 89.00, image: 'images/smartwatch.png' },
+        { id: 10, name: 'E-Reader Touch', price: 119.00, image: 'images/smartphone.png' }
+    ];
+*/
+
+let products = [];
+
+async function loadProducts() {
+    try {
+        // We maken een nieuwe route in de server die de producten uit de DB haalt
+        const response = await fetch('http://localhost:3000/api/products');
+        products = await response.json();
+        renderProducts(); // Teken de producten pas als de data er is
+    } catch (error) {
+        console.error("Fout bij laden producten:", error);
+    }
+}
 
     let cart = [];
 
@@ -20,9 +45,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const backBtn = document.getElementById('back-btn');
     const checkoutForm = document.getElementById('order-form');
 
+    async function loadProducts() {
+    try {
+        const response = await fetch('http://localhost:3000/api/products');
+        if (!response.ok) throw new Error('Netwerk respons was niet ok');
+        products = await response.json();
+        console.log("Producten geladen uit DB:", products); // Debug lijn
+        renderProducts();
+    } catch (error) {
+        console.error("Fout bij laden producten:", error);
+        productGrid.innerHTML = "<p>Fout bij laden van producten. Start de server!</p>";
+    }
+}
+    
     // Initialisatie
     async function init() {
-        await fetchProducts();
+        await loadProducts(); // Wacht tot de producten binnen zijn
         updateCartUI();
         checkUserStatus();
     }
@@ -57,6 +95,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Producten Renderen
     function renderProducts() {
+    if (products.length === 0) {
+        productGrid.innerHTML = "<p>Producten laden...</p>";
+        return;
+    }
+
+    productGrid.innerHTML = products.map(product => {
+        // Gebruik het plaatje uit de DB, of een placeholder als die ontbreekt
+        const imgUrl = product.image || 'images/placeholder.png'; 
+        const isOutOfStock = product.stock <= 0;
+
+        return `
         productGrid.innerHTML = products.map(product => {
             const isOutOfStock = product.stock <= 0;
             const btnClass = isOutOfStock ? 'add-btn disabled' : 'add-btn';
@@ -66,20 +115,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             return `
             <div class="product-card">
-                <img src="${product.image}" alt="${product.name}" class="product-image">
+                <img src="${imgUrl}" alt="${product.name}" class="product-image">
                 <div class="product-info">
                     <h3 class="product-name">${product.name}</h3>
-                    <div class="product-price">€ ${Number(product.price).toFixed(2)}</div>
-                    <div style="font-size: 0.8rem; margin-bottom: 0.5rem; ${stockColor}">
-                        Voorraad: ${product.stock}
-                    </div>
-                    <button class="${btnClass}" ${btnAttr} style="${isOutOfStock ? 'background-color: #ccc; cursor: not-allowed;' : ''}">
-                        ${btnText}
+                    <p>Voorraad: ${product.stock}</p>
+                    <div class="product-price">€ ${product.price.toFixed(2)}</div>
+                    <button class="add-btn" onclick="addToCart(${product.id})" ${isOutOfStock ? 'disabled' : ''}>
+                        ${isOutOfStock ? 'Uitverkocht' : 'Toevoegen +'}
                     </button>
                 </div>
-            </div>
-        `}).join('');
-    }
+            </div>`;
+    }).join('');
+}
+
 
     // Winkelmand Logica
     window.addToCart = (productId) => {
