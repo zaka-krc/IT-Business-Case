@@ -485,3 +485,169 @@ button,
 .backdrop.active {
     display: block;
 }
+
+/* 📱 Mobile Responsiveness (< 768px) */
+@media (max-width: 768px) {
+
+    /* HEADER */
+    header {
+        height: auto;
+        flex-wrap: wrap;
+        padding: 0.5rem 1rem;
+        gap: 0.5rem;
+    }
+
+    .header-content-wrapper {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    /* Forceer Center Title naar boven en statisch */
+    .header-center-absolute {
+        position: static;
+        width: 100%;
+        transform: none;
+        order: -1;
+        /* Helemaal bovenaan */
+        margin-bottom: 0.5rem;
+    }
+
+    .logo {
+        font-size: 1.4rem;
+    }
+
+    .header-left,
+    .header-right-wrapper {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .header-left {
+        justify-content: flex-start;
+    }
+
+    .header-right-wrapper {
+        justify-content: flex-end;
+    }
+
+    /* MAIN Layout */
+    main {
+        margin-top: 140px;
+        /* Extra ruimte voor hogere header */
+        padding: 1rem;
+    }
+
+    /* ADMIN DASHBOARD - CARD VIEW */
+    .admin-container {
+        padding: 0 1rem;
+        margin: 1rem auto;
+    }
+
+    .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    .search-container {
+        min-width: 100%;
+    }
+
+    /* Tabel naar Kaart Transformatie */
+    .table-container {
+        background: transparent;
+        box-shadow: none;
+        border: none;
+    }
+
+    table,
+    thead,
+    tbody,
+    th,
+    td,
+    tr {
+        display: block;
+    }
+
+    /* Verberg table headers */
+    thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+
+    tr {
+        background: white;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        border: 1px solid #eee;
+        overflow: hidden;
+    }
+
+    td {
+        border: none;
+        border-bottom: 1px solid #f8f9fa;
+        position: relative;
+        padding-left: 50% !important;
+        /* Ruimte voor label */
+        text-align: right;
+        min-height: 45px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    td:last-child {
+        border-bottom: none;
+        justify-content: flex-end;
+        padding: 1rem !important;
+        background: #fbfbfb;
+    }
+
+    /* Label via pseudo-element (fallback als data-label mist, maar JS voegt het toe) */
+    td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 1.5rem;
+        width: 45%;
+        padding-right: 10px;
+        white-space: nowrap;
+        text-align: left;
+        font-weight: 700;
+        color: #95a5a6;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+    }
+
+    /* Specifieke fix voor actieknoppen in kaart footer */
+    td:last-child {
+        display: flex;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    /* MODAL */
+    .popup-content {
+        width: 95%;
+        padding: 1.5rem;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .btn-group {
+        flex-direction: column-reverse;
+        gap: 0.8rem;
+    }
+
+    .checkout-btn,
+    .nav-btn {
+        width: 100% !important;
+        justify-content: center;
+    }
+
+    /* Product Grid op phone */
+    .product-grid {
+        grid-template-columns: 1fr;
+    }
+}

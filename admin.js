@@ -89,15 +89,15 @@ function renderProducts(list) {
 
     tbody.innerHTML = list.map(p => `
         <tr>
-            <td><span style="font-family: monospace; background: #f1f3f5; padding: 2px 6px; border-radius: 4px;">#${p.id}</span></td>
-            <td style="font-weight: 500;">${p.name}</td>
-            <td style="color: var(--primary-color); font-weight: 700;">€ ${parseFloat(p.price).toFixed(2)}</td>
-            <td>
+            <td data-label="ID"><span style="font-family: monospace; background: #f1f3f5; padding: 2px 6px; border-radius: 4px;">#${p.id}</span></td>
+            <td data-label="Product" style="font-weight: 500;">${p.name}</td>
+            <td data-label="Prijs" style="color: var(--primary-color); font-weight: 700;">€ ${parseFloat(p.price).toFixed(2)}</td>
+            <td data-label="Voorraad">
                 <span style="color: ${p.stock < 10 ? '#e74c3c' : '#2ecc71'}; font-weight: 600;">
                     ${p.stock} stuks
                 </span>
             </td>
-            <td>
+            <td data-label="Acties">
                 <button class="action-btn edit-btn" onclick="openEditPopup('product', ${p.id})">
                     <ion-icon name="pencil-outline"></ion-icon>
                 </button>
@@ -119,15 +119,15 @@ function renderUsers(list) {
 
     tbody.innerHTML = list.map(u => `
         <tr>
-            <td><span style="font-family: monospace; background: #f1f3f5; padding: 2px 6px; border-radius: 4px;">#${u.id}</span></td>
-            <td style="font-weight: 500;">${u.first_name} ${u.last_name}</td>
-            <td><a href="mailto:${u.email}" style="color: var(--secondary-color); text-decoration: none;">${u.email}</a></td>
-            <td><span class="role-badge role-${u.role}">${u.role}</span></td>
-            <td>
+            <td data-label="ID"><span style="font-family: monospace; background: #f1f3f5; padding: 2px 6px; border-radius: 4px;">#${u.id}</span></td>
+            <td data-label="Naam" style="font-weight: 500;">${u.first_name} ${u.last_name}</td>
+            <td data-label="Email"><a href="mailto:${u.email}" style="color: var(--secondary-color); text-decoration: none;">${u.email}</a></td>
+            <td data-label="Rol"><span class="role-badge role-${u.role}">${u.role}</span></td>
+            <td data-label="Acties">
                 <button class="action-btn edit-btn" onclick="openEditPopup('user', ${u.id})">
                     <ion-icon name="pencil-outline"></ion-icon>
                 </button>
-                ${(currentUser.role === 'super-admin' || (currentUser.role === 'admin' && u.role === 'user'))
+                ${(currentUser.role === 'super-admin' || (currentUser.role === 'admin' && u.role === 'user')) && u.id != currentUser.id
             ? `<button class="action-btn delete-btn" onclick="deleteUser(${u.id})">
                         <ion-icon name="trash-outline"></ion-icon>
                    </button>`
