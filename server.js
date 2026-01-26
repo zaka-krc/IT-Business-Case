@@ -5,6 +5,8 @@ const cors = require('cors');
 const amqp = require('amqplib');
 const CryptoJS = require("crypto-js");
 const fs = require('fs');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const db = require('./database');
 
 const app = express();
@@ -12,19 +14,6 @@ const PORT = 3000;
 
 // Versleutelingssleutel
 const SECRET_KEY = process.env.SECRET_KEY || 'default-dev-secret';
-
-// MySQL Configuratie
-const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'bestell_app',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-};
-
-const pool = mysql.createPool(dbConfig);
 
 // Middleware
 app.use(cors());
@@ -52,20 +41,46 @@ try {
     console.error("Error reading CA certificate:", err);
 }
 
-// --- PRODUCTEN ENDPOINT ---
-app.get('/api/products', async (req, res) => {
+// --- RABBITMQ SEND FUNCTIE ---
+async function sendToQueue(orderData) {
+    let connection;
     try {
-        // Zorg dat de kolomnamen matchen met wat de frontend verwacht (image vs image_url)
-        const [rows] = await pool.execute('SELECT id, name, price, image_url as image, stock, description FROM products');
-        res.json(rows);
+        connection = await amqp.connect(RABBITMQ_URL, sslOptions);
+        const channel = await connection.createChannel();
+        await channel.assertQueue(QUEUE_NAME, { durable: true });
+
+        // Versleutel de data
+        const encrypted = CryptoJS.AES.encrypt(JSON.stringify(orderData), SECRET_KEY).toString();
+
+        channel.sendToQueue(QUEUE_NAME, Buffer.from(encrypted), { persistent: true });
+        console.log(`📤 Order ${orderData.orderId} verzonden naar RabbitMQ`);
+
+        await channel.close();
+        await connection.close();
     } catch (error) {
-        console.error('Error fetching products:', error);
-        // Geef specifieke fout terug voor debugging (in productie verbergen!)
-        res.status(500).json({ error: 'Failed to fetch products', details: error.message });
+        console.error('RabbitMQ Send Error:', error);
+        if (connection) await connection.close();
+        throw error;
     }
+}
+
+// --- PRODUCTEN ENDPOINT ---
+app.get('/api/products', (req, res) => {
+    db.all("SELECT id, name, price, image_url, stock, description, product_code FROM products", [], (err, rows) => {
+        if (err) {
+            console.error('Error fetching products:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        // Map image_url to image for frontend compatibility
+        const products = rows.map(row => ({
+            ...row,
+            image: row.image_url
+        }));
+        res.json(products);
+    });
 });
 
-// --- AUTHENTICATIE & GEBRUIKERSBEHEER (MySQL) ---
+// --- AUTHENTICATIE & GEBRUIKERSBEHEER (SQLite) ---
 
 // REGISTER
 app.post('/api/register', async (req, res) => {
@@ -83,37 +98,49 @@ app.post('/api/register', async (req, res) => {
 
     try {
         // Check bestaande user
-        const [existing] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
-        if (existing.length > 0) {
-            return res.status(400).json({ status: 'error', message: 'Gebruiker bestaat al.' });
-        }
-
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-        const salesforceId = crypto.randomUUID();
-
-        // Insert - Let op de kolomnamen uit schema.sql
-        const [result] = await pool.execute(
-            `INSERT INTO users (salesforce_external_id, email, password_hash, first_name, last_name, street, house_number, zipcode) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [salesforceId, email, hashedPassword, firstName, lastName, '', '', '']
-        );
-
-        res.json({
-            status: 'success',
-            user: {
-                id: result.insertId,
-                firstName,
-                lastName,
-                email,
-                salesforce_external_id: salesforceId
+        db.get('SELECT id FROM users WHERE email = ?', [email], async (err, existingUser) => {
+            if (err) {
+                console.error('Register DB Error:', err);
+                return res.status(500).json({ status: 'error', message: 'Database fout: ' + err.message });
             }
+
+            if (existingUser) {
+                return res.status(400).json({ status: 'error', message: 'Gebruiker bestaat al.' });
+            }
+
+            // Hash password
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+            const salesforceId = crypto.randomUUID();
+
+            // Insert new user
+            db.run(
+                `INSERT INTO users (salesforce_external_id, email, password_hash, first_name, last_name, street, house_number, zipcode) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [salesforceId, email, hashedPassword, firstName, lastName, '', '', ''],
+                function (err) {
+                    if (err) {
+                        console.error('Insert User Error:', err);
+                        return res.status(500).json({ status: 'error', message: 'Database fout bij registreren: ' + err.message });
+                    }
+
+                    res.json({
+                        status: 'success',
+                        user: {
+                            id: this.lastID,
+                            firstName,
+                            lastName,
+                            email,
+                            salesforce_external_id: salesforceId
+                        }
+                    });
+                }
+            );
         });
 
     } catch (error) {
-        console.error('Register SQL Error:', error);
-        // Stuur de echte SQL foutmelding terug voor debugging
-        res.status(500).json({ status: 'error', message: 'Database fout bij registreren: ' + error.message });
+        console.error('Register Error:', error);
+        res.status(500).json({ status: 'error', message: 'Registreren mislukt: ' + error.message });
     }
 });
 
@@ -129,99 +156,108 @@ app.post('/api/login', async (req, res) => {
     password = password.trim();
 
     try {
-        const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
-
-        if (rows.length === 0) {
-            return res.status(401).json({ status: 'error', message: 'Ongeldige inloggegevens (User not found).' });
-        }
-
-        const user = rows[0];
-        const validPassword = await bcrypt.compare(password, user.password_hash);
-
-        if (!validPassword) {
-            return res.status(401).json({ status: 'error', message: 'Ongeldige inloggegevens (Password mismatch).' });
-        }
-
-        res.json({
-            status: 'success',
-            user: {
-                id: user.id,
-                email: user.email,
-                firstName: user.first_name,
-                lastName: user.last_name,
-                salesforce_external_id: user.salesforce_external_id,
-                address: {
-                    street: user.street,
-                    number: user.house_number,
-                    zipcode: user.zipcode
-                }
+        db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
+            if (err) {
+                console.error('Login DB Error:', err);
+                return res.status(500).json({ status: 'error', message: 'Database fout: ' + err.message });
             }
+
+            if (!user) {
+                return res.status(401).json({ status: 'error', message: 'Ongeldige inloggegevens (User not found).' });
+            }
+
+            const validPassword = await bcrypt.compare(password, user.password_hash);
+
+            if (!validPassword) {
+                return res.status(401).json({ status: 'error', message: 'Ongeldige inloggegevens (Password mismatch).' });
+            }
+
+            res.json({
+                status: 'success',
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    firstName: user.first_name,
+                    lastName: user.last_name,
+                    salesforce_external_id: user.salesforce_external_id,
+                    address: {
+                        street: user.street,
+                        number: user.house_number,
+                        zipcode: user.zipcode
+                    }
+                }
+            });
         });
     } catch (error) {
-        console.error('Login SQL Error:', error);
+        console.error('Login Error:', error);
         res.status(500).json({ status: 'error', message: 'Login mislukt: ' + error.message });
     }
 });
 
 // UPDATE USER (Adres)
-app.put('/api/user/:id', async (req, res) => {
+app.put('/api/user/:id', (req, res) => {
     const userId = req.params.id;
     const { street, number, zipcode } = req.body;
 
-    try {
-        const [result] = await pool.execute(
-            'UPDATE users SET street = ?, house_number = ?, zipcode = ? WHERE id = ?',
-            [street, number, zipcode, userId]
-        );
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ status: 'error', message: 'Gebruiker niet gevonden om te updaten.' });
-        }
-
-        // Fetch updated user to return
-        const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [userId]);
-        const user = rows[0];
-
-        res.json({
-            status: 'success',
-            message: 'Adres bijgewerkt.',
-            user: {
-                id: user.id,
-                email: user.email,
-                firstName: user.first_name,
-                lastName: user.last_name,
-                salesforce_external_id: user.salesforce_external_id,
-                address: {
-                    street: user.street,
-                    number: user.house_number,
-                    zipcode: user.zipcode
-                }
+    db.run(
+        'UPDATE users SET street = ?, house_number = ?, zipcode = ? WHERE id = ?',
+        [street, number, zipcode, userId],
+        function (err) {
+            if (err) {
+                console.error('Update Error:', err);
+                return res.status(500).json({ status: 'error', message: 'Update mislukt: ' + err.message });
             }
-        });
-    } catch (error) {
-        console.error('Update Error:', error);
-        res.status(500).json({ status: 'error', message: 'Update mislukt.' });
-    }
+
+            if (this.changes === 0) {
+                return res.status(404).json({ status: 'error', message: 'Gebruiker niet gevonden om te updaten.' });
+            }
+
+            // Fetch updated user to return
+            db.get('SELECT * FROM users WHERE id = ?', [userId], (err, user) => {
+                if (err) {
+                    return res.status(500).json({ status: 'error', message: 'Fout bij ophalen user: ' + err.message });
+                }
+
+                res.json({
+                    status: 'success',
+                    message: 'Adres bijgewerkt.',
+                    user: {
+                        id: user.id,
+                        email: user.email,
+                        firstName: user.first_name,
+                        lastName: user.last_name,
+                        salesforce_external_id: user.salesforce_external_id,
+                        address: {
+                            street: user.street,
+                            number: user.house_number,
+                            zipcode: user.zipcode
+                        }
+                    }
+                });
+            });
+        }
+    );
 });
 
 // DELETE USER
-app.delete('/api/user/:id', async (req, res) => {
+app.delete('/api/user/:id', (req, res) => {
     const userId = req.params.id;
-    try {
-        const [result] = await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
 
-        if (result.affectedRows === 0) {
+    db.run('DELETE FROM users WHERE id = ?', [userId], function (err) {
+        if (err) {
+            console.error('Delete Error:', err);
+            return res.status(500).json({ status: 'error', message: 'Delete mislukt: ' + err.message });
+        }
+
+        if (this.changes === 0) {
             return res.status(404).json({ status: 'error', message: 'Gebruiker niet gevonden.' });
         }
 
         res.json({ status: 'success', message: 'Account verwijderd.' });
-    } catch (error) {
-        console.error('Delete Error:', error);
-        res.status(500).json({ status: 'error', message: 'Delete mislukt.' });
-    }
+    });
 });
 
-// Routes
+// --- ORDERS ---
 // Bestelling plaatsen
 app.post('/api/send', (req, res) => {
     const orderData = req.body;
@@ -232,12 +268,12 @@ app.post('/api/send', (req, res) => {
     }
 
     // We pakken het eerste item uit de bestelling om de voorraad te checken
-    const item = orderData.items[0]; 
+    const item = orderData.items[0];
 
     // 2. SQL Query: Verminder de voorraad alleen als er genoeg is (stock >= quantity)
     const sql = `UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`;
 
-    db.run(sql, [item.quantity, item.id, item.quantity], async function(err) {
+    db.run(sql, [item.quantity, item.id, item.quantity], async function (err) {
         if (err) {
             console.error("Database fout:", err.message);
             return res.status(500).json({ status: 'error', message: 'Interne database fout' });
@@ -245,9 +281,9 @@ app.post('/api/send', (req, res) => {
 
         // 'this.changes' is 0 als de WHERE clause niet klopte (dus niet genoeg voorraad)
         if (this.changes === 0) {
-            return res.status(400).json({ 
-                status: 'error', 
-                message: `Helaas, niet genoeg voorraad voor ${item.name}!` 
+            return res.status(400).json({
+                status: 'error',
+                message: `Helaas, niet genoeg voorraad voor ${item.name}!`
             });
         }
 
@@ -255,9 +291,9 @@ app.post('/api/send', (req, res) => {
         try {
             console.log(`✅ Voorraad gereserveerd voor ${item.name}. Bericht sturen naar RabbitMQ...`);
             await sendToQueue(orderData);
-            res.json({ 
-                status: 'success', 
-                message: 'Bestelling gelukt! Voorraad is bijgewerkt en data is onderweg naar Salesforce.' 
+            res.json({
+                status: 'success',
+                message: 'Bestelling gelukt! Voorraad is bijgewerkt en data is onderweg naar Salesforce.'
             });
         } catch (error) {
             console.error('RabbitMQ fout:', error);
@@ -266,10 +302,8 @@ app.post('/api/send', (req, res) => {
     });
 });
 
-// Consumer Endpoints (Ongewijzigd, alleen connectie fix)
+// --- CONSUMER ENDPOINTS ---
 async function consumeMessages(queueName = QUEUE_NAME) {
-    // ... bestaande logica kan hier blijven of simpeler
-    // Voor nu even simpele implementatie om het werkend te houden zoals voorheen
     let connection;
     try {
         connection = await amqp.connect(RABBITMQ_URL, sslOptions);
@@ -285,13 +319,16 @@ async function consumeMessages(queueName = QUEUE_NAME) {
                 const decrypted = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
                 messages.push(decrypted);
                 channel.ack(msg);
-            } catch (e) { console.error(e); channel.nack(msg, false, false); }
+            } catch (e) {
+                console.error('Decrypt Error:', e);
+                channel.nack(msg, false, false);
+            }
         }
 
         setTimeout(() => { if (connection) connection.close(); }, 200);
         return messages;
     } catch (e) {
-        console.error(e);
+        console.error('Consume Error:', e);
         if (connection) connection.close();
         return [];
     }
@@ -307,11 +344,4 @@ app.listen(PORT, () => {
     console.log(`RabbitMQ Target: ${RABBITMQ_URL}`);
     console.log(`Fanout Exchange: ${EXCHANGE_NAME}`);
     console.log(`Queues: ${QUEUE_NAME}, ${BACKUP_QUEUE_NAME}`);
-});
-
-app.get('/api/products', (req, res) => {
-    db.all("SELECT * FROM products", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
 });

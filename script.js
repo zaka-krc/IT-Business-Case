@@ -14,18 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 */
 
-let products = [];
+    let products = [];
 
-async function loadProducts() {
-    try {
-        // We maken een nieuwe route in de server die de producten uit de DB haalt
-        const response = await fetch('http://localhost:3000/api/products');
-        products = await response.json();
-        renderProducts(); // Teken de producten pas als de data er is
-    } catch (error) {
-        console.error("Fout bij laden producten:", error);
-    }
-}
+
 
     let cart = [];
 
@@ -45,19 +36,7 @@ async function loadProducts() {
     const backBtn = document.getElementById('back-btn');
     const checkoutForm = document.getElementById('order-form');
 
-    async function loadProducts() {
-    try {
-        const response = await fetch('http://localhost:3000/api/products');
-        if (!response.ok) throw new Error('Netwerk respons was niet ok');
-        products = await response.json();
-        console.log("Producten geladen uit DB:", products); // Debug lijn
-        renderProducts();
-    } catch (error) {
-        console.error("Fout bij laden producten:", error);
-        productGrid.innerHTML = "<p>Fout bij laden van producten. Start de server!</p>";
-    }
-}
-    
+
     // Initialisatie
     async function init() {
         await loadProducts(); // Wacht tot de producten binnen zijn
@@ -65,9 +44,9 @@ async function loadProducts() {
         checkUserStatus();
     }
 
-    async function fetchProducts() {
+    async function loadProducts() {
         try {
-            const response = await fetch('http://localhost:3000/api/products');
+            const response = await fetch('/api/products');
             products = await response.json();
             renderProducts();
         } catch (error) {
@@ -95,23 +74,15 @@ async function loadProducts() {
 
     // Producten Renderen
     function renderProducts() {
-    if (products.length === 0) {
-        productGrid.innerHTML = "<p>Producten laden...</p>";
-        return;
-    }
+        if (products.length === 0) {
+            productGrid.innerHTML = "<p>Producten laden...</p>";
+            return;
+        }
 
-    productGrid.innerHTML = products.map(product => {
-        // Gebruik het plaatje uit de DB, of een placeholder als die ontbreekt
-        const imgUrl = product.image || 'images/placeholder.png'; 
-        const isOutOfStock = product.stock <= 0;
-
-        return `
         productGrid.innerHTML = products.map(product => {
+            // Gebruik het plaatje uit de DB, of een placeholder als die ontbreekt
+            const imgUrl = product.image || 'images/placeholder.png';
             const isOutOfStock = product.stock <= 0;
-            const btnClass = isOutOfStock ? 'add-btn disabled' : 'add-btn';
-            const btnText = isOutOfStock ? 'Out of Stock' : 'Toevoegen +';
-            const btnAttr = isOutOfStock ? 'disabled' : `onclick="addToCart(${product.id})"`;
-            const stockColor = isOutOfStock ? 'color: red;' : 'color: green;';
 
             return `
             <div class="product-card">
@@ -125,8 +96,8 @@ async function loadProducts() {
                     </button>
                 </div>
             </div>`;
-    }).join('');
-}
+        }).join('');
+    }
 
 
     // Winkelmand Logica

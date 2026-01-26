@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
         consumeBtn.addEventListener('click', () => {
             messagesDisplay.textContent = 'Bericht ophalen...';
 
-            fetch('http://localhost:3000/api/consume')
+            fetch('/api/consume')
                 .then(res => res.json())
                 .then(data => {
                     if (data.status === 'success') {

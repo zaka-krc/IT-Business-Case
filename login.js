@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
         payload.email = payload.email.trim();
         payload.password = payload.password.trim();
 
-        fetch('http://localhost:3000/api/login', {
+        fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        fetch('http://localhost:3000/api/register', {
+        fetch('/api/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

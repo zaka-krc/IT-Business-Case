@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // Send to Backend
-        fetch('http://localhost:3000/api/send', {
+        fetch('/api/send', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

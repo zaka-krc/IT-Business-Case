@@ -23,9 +23,14 @@ async function startSalesforceWorker() {
     });
 
     try {
-        const username = process.env.SF_USERNAME.trim();
-        const password = process.env.SF_PASSWORD.trim();
-        const token = process.env.SF_TOKEN.trim();
+        const username = process.env.SF_USERNAME ? process.env.SF_USERNAME.trim() : '';
+        const password = process.env.SF_PASSWORD ? process.env.SF_PASSWORD.trim() : '';
+        const token = process.env.SF_TOKEN ? process.env.SF_TOKEN.trim() : '';
+
+        if (!username || !password || !token) {
+            console.log("⚠️ Salesforce credentials ontbreken in .env. Worker slaat Salesforce connectie over.");
+            return;
+        }
 
         console.log(`🚀 Inloggen bij Salesforce: ${username}`);
         await conn.login(username, password + token);
@@ -33,7 +38,7 @@ async function startSalesforceWorker() {
 
         // 2. Verbinden met RabbitMQ
         console.log("🔌 Verbinden met RabbitMQ...");
-        
+
         // Optioneel: SSL Opties (als je een CA-certificaat hebt)
         const sslOptions = {
             checkServerIdentity: () => undefined, // Negeer hostname mismatch
@@ -42,7 +47,7 @@ async function startSalesforceWorker() {
         const mqConn = await amqp.connect(RABBITMQ_URL, sslOptions);
         const channel = await mqConn.createChannel();
         await channel.assertQueue(QUEUE_NAME, { durable: true });
-        channel.prefetch(1); 
+        channel.prefetch(1);
 
         console.log(`📥 Worker actief. Wachten op orders in '${QUEUE_NAME}'...`);
 
@@ -53,9 +58,9 @@ async function startSalesforceWorker() {
                     const encryptedContent = msg.content.toString();
                     const bytes = CryptoJS.AES.decrypt(encryptedContent, SECRET_KEY);
                     const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
-                    
+
                     if (!decryptedString) throw new Error("Decryptie mislukt. Controleer je SECRET_KEY!");
-                    
+
                     const data = JSON.parse(decryptedString);
                     console.log(`📦 Order ontvangen: ${data.orderId} voor ${data.customer.email}`);
 

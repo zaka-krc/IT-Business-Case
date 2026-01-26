@@ -4,7 +4,8 @@
     "description": "Simple backend for sending orders to RabbitMQ",
     "main": "server.js",
     "scripts": {
-        "start": "node server.js"
+        "start": "node start.js",
+        "server": "node server.js"
     },
     "dependencies": {
         "amqplib": "^0.10.9",
