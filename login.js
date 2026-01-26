@@ -18,6 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(loginForm);
         const payload = Object.fromEntries(formData);
 
+        // Trim inputs
+        payload.email = payload.email.trim();
+        payload.password = payload.password.trim();
+
         fetch('http://localhost:3000/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -41,6 +45,12 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const formData = new FormData(registerForm);
         const payload = Object.fromEntries(formData);
+
+        // Trim inputs
+        payload.email = payload.email.trim();
+        payload.password = payload.password.trim();
+        payload.firstName = payload.firstName.trim();
+        payload.lastName = payload.lastName.trim();
 
         // Simple validation check
         if (payload.password.length < 4) {

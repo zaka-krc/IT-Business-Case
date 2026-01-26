@@ -65,6 +65,17 @@ async function loadProducts() {
         checkUserStatus();
     }
 
+    async function fetchProducts() {
+        try {
+            const response = await fetch('http://localhost:3000/api/products');
+            products = await response.json();
+            renderProducts();
+        } catch (error) {
+            console.error('Failed to fetch products:', error);
+            productGrid.innerHTML = '<p style="text-align:center; color:red;">Kan producten niet laden.</p>';
+        }
+    }
+
     function checkUserStatus() {
         const userJson = localStorage.getItem('user');
         const userLabel = document.getElementById('user-label');
@@ -95,6 +106,14 @@ async function loadProducts() {
         const isOutOfStock = product.stock <= 0;
 
         return `
+        productGrid.innerHTML = products.map(product => {
+            const isOutOfStock = product.stock <= 0;
+            const btnClass = isOutOfStock ? 'add-btn disabled' : 'add-btn';
+            const btnText = isOutOfStock ? 'Out of Stock' : 'Toevoegen +';
+            const btnAttr = isOutOfStock ? 'disabled' : `onclick="addToCart(${product.id})"`;
+            const stockColor = isOutOfStock ? 'color: red;' : 'color: green;';
+
+            return `
             <div class="product-card">
                 <img src="${imgUrl}" alt="${product.name}" class="product-image">
                 <div class="product-info">
@@ -116,25 +135,70 @@ async function loadProducts() {
         const existingItem = cart.find(item => item.id === productId);
 
         if (existingItem) {
-            existingItem.quantity += 1;
+            if (existingItem.quantity < product.stock) {
+                existingItem.quantity += 1;
+            } else {
+                alert('Niet meer voorraad beschikbaar!');
+                return;
+            }
         } else {
-            cart.push({ ...product, quantity: 1 });
+            if (product.stock > 0) {
+                cart.push({ ...product, quantity: 1 });
+            }
         }
 
         updateCartUI();
         openCart();
     };
 
-    window.updateQuantity = (productId, change) => {
-        const itemIndex = cart.findIndex(item => item.id === productId);
-        if (itemIndex === -1) return;
+    window.handleManualQuantityChange = (productId, input) => {
+        const item = cart.find(i => i.id === productId);
+        if (!item) return;
 
-        cart[itemIndex].quantity += change;
+        let val = parseInt(input.value);
 
-        if (cart[itemIndex].quantity <= 0) {
-            cart.splice(itemIndex, 1);
+        // Validatie: check NaN en minstens 1
+        if (isNaN(val) || val < 1) {
+            val = 1;
         }
 
+        // Validatie: check stock
+        if (val > item.stock) {
+            val = item.stock;
+            alert(`Maximale voorraad voor ${item.name} is ${item.stock}`);
+        }
+
+        // Update state en UI
+        item.quantity = val;
+        input.value = val;
+        updateCartUI();
+    };
+
+    window.updateQuantity = (productId, change) => {
+        const item = cart.find(i => i.id === productId);
+        if (!item) return;
+
+        let newQty = item.quantity + change;
+
+        // Minimaal 1 (of verwijderen bij 0, afhankelijk van UX. Hier kiezen we voor verwijderen bij 0 via de min knop)
+        if (newQty <= 0) {
+            const confirmDelete = confirm("Item verwijderen?");
+            if (confirmDelete) {
+                cart.splice(cart.indexOf(item), 1);
+                updateCartUI();
+                return;
+            } else {
+                newQty = 1;
+            }
+        }
+
+        // Maximaal stock
+        if (newQty > item.stock) {
+            newQty = item.stock;
+            alert(`Niet meer voorraad beschikbaar! Max: ${item.stock}`);
+        }
+
+        item.quantity = newQty;
         updateCartUI();
     };
 
@@ -155,9 +219,15 @@ async function loadProducts() {
                     <div class="cart-item-details">
                         <div class="cart-item-title">${item.name}</div>
                         <div class="cart-item-price">€ ${(item.price * item.quantity).toFixed(2)}</div>
-                        <div class="cart-controls">
+                        <div class="cart-controls" style="display: flex; align-items: center; gap: 5px;">
                             <button class="qty-btn" onclick="updateQuantity(${item.id}, -1)">-</button>
-                            <span>${item.quantity}</span>
+                            <input type="number" 
+                                   class="qty-input" 
+                                   value="${item.quantity}" 
+                                   min="1" 
+                                   max="${item.stock}" 
+                                   onchange="handleManualQuantityChange(${item.id}, this)"
+                                   style="width: 50px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 2px;">
                             <button class="qty-btn" onclick="updateQuantity(${item.id}, 1)">+</button>
                         </div>
                     </div>
@@ -174,7 +244,7 @@ async function loadProducts() {
     function openCart() {
         cartOverlay.classList.add('open');
         backdrop.classList.add('active');
-        showCartView(); // Reset naar winkelmandweergave bij het openen
+        showCartView();
     }
 
     function closeCart() {
