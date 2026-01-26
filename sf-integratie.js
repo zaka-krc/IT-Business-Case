@@ -62,6 +62,23 @@ async function startSalesforceWorker() {
                     if (!decryptedString) throw new Error("Decryptie mislukt. Controleer je SECRET_KEY!");
 
                     const data = JSON.parse(decryptedString);
+                    console.log("DEBUG SF-WORKER: received data", JSON.stringify(data));
+
+                    // FALLBACK: Voor oude berichten zonder orderId
+                    if (!data.orderId) {
+                        data.orderId = Date.now(); // Gewoon een nummer, geen 'LEGACY' prefix
+                        console.log("⚠️ Bericht zonder Order ID ontvangen. Nieuw ID gegenereerd:", data.orderId);
+                    }
+                    console.log(`DEBUG-V2: Final Order ID: ${data.orderId}, Type: ${typeof data.orderId}`);
+
+                    if (!data.orderId || data.orderId === 'undefined') {
+                        throw new Error("CRITICAL: Order ID is still undefined after fallback!");
+                    }
+
+                    if (!data.totalAmount) {
+                        // Probeer te herberekenen of zet op 0
+                        data.totalAmount = data.items ? data.items.reduce((sum, i) => sum + (i.price * (i.quantity || 1)), 0) : 0;
+                    }
                     console.log(`📦 Order ontvangen: ${data.orderId} voor ${data.customer.email}`);
 
                     // --- STAP B: Zoek of maak Contact ---
@@ -93,7 +110,7 @@ async function startSalesforceWorker() {
                         CloseDate: new Date().toISOString().split('T')[0],
                         Amount: data.totalAmount,
                         ContactId: contactId,
-                        Description: `Items: ${data.items.map(i => i.productName).join(', ')}`
+                        Description: `Items: ${data.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}`
                     });
 
                     if (opportunity.success) {
@@ -105,6 +122,9 @@ async function startSalesforceWorker() {
 
                 } catch (err) {
                     console.error("⚠️ Fout bij verwerken bericht:", err.message);
+                    if (err.errorCode) console.error("   Code:", err.errorCode);
+                    if (err.fields) console.error("   Fields:", err.fields);
+
                     // Bij fout: zet bericht na 10 seconden terug in de wachtrij
                     setTimeout(() => channel.nack(msg), 10000);
                 }

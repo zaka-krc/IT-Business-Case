@@ -290,6 +290,13 @@ app.post('/api/send', (req, res) => {
         // 3. Voorraad is afgeschreven, nu pas naar RabbitMQ sturen
         try {
             console.log(`✅ Voorraad gereserveerd voor ${item.name}. Bericht sturen naar RabbitMQ...`);
+
+            // Genereer Order ID en bereken totaalbedrag
+            orderData.orderId = Date.now(); // Numeriek ID
+            orderData.totalAmount = orderData.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+
+            console.log("DEBUG SERVER: sending orderData", JSON.stringify(orderData));
+
             await sendToQueue(orderData);
             res.json({
                 status: 'success',
