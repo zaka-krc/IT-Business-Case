@@ -15,6 +15,25 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('p-zipcode').value = user.address.zipcode || '';
     }
 
+    // VEILIGHEID: Verberg/Disable delete knop voor Super-Admin
+    if (user.role === 'super-admin') {
+        const deleteBtn = document.getElementById('delete-account-btn');
+        if (deleteBtn) {
+            deleteBtn.disabled = true;
+            deleteBtn.style.backgroundColor = '#ccc';
+            deleteBtn.style.cursor = 'not-allowed';
+            deleteBtn.textContent = 'Account verwijderen niet toegestaan (Super-Admin)';
+
+            // Verwijder event listener effectief door de knop te clonen en te vervangen (snelle hack) of gewoon de listener in logic te blokkeren
+            // Maar disabled attribute zou genoeg moeten zijn voor UI.
+            // Voor de zekerheid ook de container aanpassen:
+            const dangerZone = document.querySelector('.danger-zone');
+            if (dangerZone) {
+                dangerZone.style.opacity = '0.5';
+            }
+        }
+    }
+
     // LOGOUT
     document.getElementById('logout-btn').addEventListener('click', () => {
         localStorage.removeItem('user');

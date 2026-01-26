@@ -38,7 +38,7 @@ try {
         };
     }
 } catch (err) {
-    console.error("Error reading CA certificate:", err);
+    console.error("Fout bij lezen CA certificaat:", err);
 }
 
 // --- RABBITMQ SEND FUNCTIE ---
@@ -68,7 +68,7 @@ async function sendToQueue(orderData) {
 app.get('/api/products', (req, res) => {
     db.all("SELECT id, name, price, image_url, stock, description, product_code FROM products", [], (err, rows) => {
         if (err) {
-            console.error('Error fetching products:', err);
+            console.error('Fout bij ophalen producten:', err);
             return res.status(500).json({ error: err.message });
         }
         // Map image_url to image for frontend compatibility
@@ -100,7 +100,7 @@ app.post('/api/register', async (req, res) => {
         // Check bestaande user
         db.get('SELECT id FROM users WHERE email = ?', [email], async (err, existingUser) => {
             if (err) {
-                console.error('Register DB Error:', err);
+                console.error('Registreer DB Fout:', err);
                 return res.status(500).json({ status: 'error', message: 'Database fout: ' + err.message });
             }
 
@@ -115,8 +115,8 @@ app.post('/api/register', async (req, res) => {
 
             // Insert new user
             db.run(
-                `INSERT INTO users (salesforce_external_id, email, password_hash, first_name, last_name, street, house_number, zipcode) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO users (salesforce_external_id, email, password_hash, first_name, last_name, street, house_number, zipcode, role) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user')`,
                 [salesforceId, email, hashedPassword, firstName, lastName, '', '', ''],
                 function (err) {
                     if (err) {
@@ -179,6 +179,7 @@ app.post('/api/login', async (req, res) => {
                     email: user.email,
                     firstName: user.first_name,
                     lastName: user.last_name,
+                    role: user.role,
                     salesforce_external_id: user.salesforce_external_id,
                     address: {
                         street: user.street,
@@ -257,6 +258,207 @@ app.delete('/api/user/:id', (req, res) => {
     });
 });
 
+// --- ADMIN MIDDELWARE & ENDPOINTS ---
+
+// Middleware om te checken of iemand admin of super-admin is
+const checkAdmin = (req, res, next) => {
+    const requesterId = req.headers['x-user-id']; // Frontend moet dit meesturen
+    if (!requesterId) return res.status(401).json({ error: 'Niet geautoriseerd (Geen ID)' });
+
+    db.get('SELECT role FROM users WHERE id = ?', [requesterId], (err, user) => {
+        if (err || !user) return res.status(401).json({ error: 'Niet geautoriseerd (User onbekend)' });
+
+        if (user.role === 'admin' || user.role === 'super-admin') {
+            req.userRole = user.role; // Opslaan voor later gebruik
+            req.requesterId = requesterId;
+            next();
+        } else {
+            return res.status(403).json({ error: 'Toegang geweigerd: Alleen voor admins.' });
+        }
+    });
+};
+
+// Check specifiek voor Super-Admin
+const checkSuperAdmin = (req, res, next) => {
+    const requesterId = req.headers['x-user-id'];
+    db.get('SELECT role FROM users WHERE id = ?', [requesterId], (err, user) => {
+        if (err || !user) return res.status(401).json({ error: 'Niet geautoriseerd' });
+
+        if (user.role === 'super-admin') {
+            next();
+        } else {
+            return res.status(403).json({ error: 'Alleen Super-Admin mag dit doen.' });
+        }
+    });
+};
+
+// 1. Create User (Admin/Super-Admin)
+app.post('/api/admin/users', checkAdmin, async (req, res) => {
+    let { firstName, lastName, email, password, role, street, number, zipcode } = req.body;
+    const requesterRole = req.userRole;
+
+    // RBAC Checks
+    if (requesterRole === 'admin') {
+        if (role === 'admin' || role === 'super-admin') {
+            return res.status(403).json({ error: "Admins kunnen alleen 'user' aanmaken." });
+        }
+        // Forceer role naar user als admin het aanmaakt (redundant check, maar veilig)
+        role = 'user';
+    }
+
+    if (requesterRole === 'super-admin') {
+        if (role === 'super-admin') {
+            return res.status(403).json({ error: "Er kan maar één Super-Admin zijn." });
+        }
+    }
+
+    // Validatie
+    if (!email || !password || !firstName || !lastName) {
+        return res.status(400).json({ error: "Vul alle verplichte velden in." });
+    }
+
+    try {
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+        const salesforceId = crypto.randomUUID();
+
+        db.run(
+            `INSERT INTO users (salesforce_external_id, email, password_hash, first_name, last_name, street, house_number, zipcode, role) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [salesforceId, email, hashedPassword, firstName, lastName, street, number, zipcode, role || 'user'],
+            function (err) {
+                if (err) {
+                    if (err.message.includes('UNIQUE constraint failed')) {
+                        return res.status(400).json({ error: "Email bestaat al." });
+                    }
+                    return res.status(500).json({ error: err.message });
+                }
+                res.json({ message: "Gebruiker succesvol aangemaakt.", id: this.lastID });
+            }
+        );
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 2. Haal alle users op (Admin Only)
+app.get('/api/admin/users', checkAdmin, (req, res) => {
+    db.all("SELECT id, first_name, last_name, email, role, street, house_number, zipcode FROM users", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+// 2. Wijzig een user (Admin: NAW, Super-Admin: Roles/Admins)
+app.put('/api/admin/users/:id', checkAdmin, (req, res) => {
+    const targetUserId = req.params.id;
+    const { firstName, lastName, email, role, street, number, zipcode } = req.body;
+    const requesterRole = req.userRole;
+    const requesterId = req.requesterId;
+
+    // Beveiliging: Voorkom dat je je eigen rol aanpast (Accidental lockout)
+    if (targetUserId == requesterId && role && role !== requesterRole) {
+        return res.status(400).json({ error: "Je mag je eigen rol niet wijzigen." });
+    }
+
+    // Ophalen target user om te checken wie we aanpassen
+    db.get('SELECT role FROM users WHERE id = ?', [targetUserId], (err, targetUser) => {
+        if (err || !targetUser) return res.status(404).json({ error: "Gebruiker niet gevonden" });
+
+        // REGEL: Admin kan geen admins/super-admins aanpassen, en geen rollen wijzigen naar admin
+        if (requesterRole === 'admin') {
+            if (targetUser.role === 'admin' || targetUser.role === 'super-admin') {
+                return res.status(403).json({ error: "Admins kunnen geen andere admins wijzigen." });
+            }
+            if (role && (role === 'admin' || role === 'super-admin')) {
+                return res.status(403).json({ error: "Admins kunnen geen gebruikers promoveren." });
+            }
+        }
+
+        // REGEL: Super-Admin kan geen andere Super-Admin maken
+        if (requesterRole === 'super-admin' && role === 'super-admin' && targetUser.role !== 'super-admin') {
+            return res.status(403).json({ error: "Er kan maar één Super-Admin zijn." });
+        }
+
+        const sql = `UPDATE users SET first_name = ?, last_name = ?, email = ?, role = ?, street = ?, house_number = ?, zipcode = ? WHERE id = ?`;
+        db.run(sql, [firstName, lastName, email, role || targetUser.role, street, number, zipcode, targetUserId], function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: "Gebruiker succesvol bijgewerkt." });
+        });
+    });
+});
+
+// 3. Verwijder User (Admin/Super-Admin regels)
+app.delete('/api/admin/users/:id', checkAdmin, (req, res) => {
+    const targetUserId = req.params.id;
+    const requesterRole = req.userRole;
+    const requesterId = req.requesterId;
+
+    if (targetUserId == requesterId) {
+        return res.status(400).json({ error: "Je kunt jezelf niet verwijderen via het admin paneel." });
+    }
+
+    db.get('SELECT role FROM users WHERE id = ?', [targetUserId], (err, targetUser) => {
+        if (err || !targetUser) return res.status(404).json({ error: "Gebruiker niet gevonden" });
+
+        // REGEL: Admin mag GEEN admin/super-admin verwijderen
+        if (requesterRole === 'admin' && (targetUser.role === 'admin' || targetUser.role === 'super-admin')) {
+            return res.status(403).json({ error: "Admins kunnen geen andere admins of super-admins verwijderen." });
+        }
+
+        // REGEL: Alleen Super-Admin kan Admins verwijderen (Eigenlijk al gedekt hierboven, maar voor duidelijkheid)
+        // Super-Admin kan iedereen verwijderen behalve zichzelf (check bovenaan)
+
+        db.run('DELETE FROM users WHERE id = ?', [targetUserId], function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: "Gebruiker verwijderd." });
+        });
+    });
+});
+
+// 4. Update Product (Admin)
+app.put('/api/admin/products/:id', checkAdmin, (req, res) => {
+    const { name, stock, price } = req.body;
+    const productId = req.params.id;
+
+    db.run("UPDATE products SET name = ?, stock = ?, price = ? WHERE id = ?", [name, stock, price, productId], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: "Product bijgewerkt." });
+    });
+});
+
+// 5. Create Product (Admin)
+app.post('/api/admin/products', checkAdmin, (req, res) => {
+    const { name, stock, price } = req.body;
+
+    if (!name || !price) {
+        return res.status(400).json({ error: "Naam en prijs zijn verplicht." });
+    }
+
+    const productCode = 'PROD-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+
+    db.run(
+        "INSERT INTO products (name, price, stock, product_code, image_url, description) VALUES (?, ?, ?, ?, ?, ?)",
+        [name, price, stock || 0, productCode, 'images/placeholder.png', 'Nieuw product'],
+        function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: "Product aangemaakt.", id: this.lastID });
+        }
+    );
+});
+
+// 6. Delete Product (Admin)
+app.delete('/api/admin/products/:id', checkAdmin, (req, res) => {
+    const productId = req.params.id;
+
+    db.run("DELETE FROM products WHERE id = ?", [productId], function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        if (this.changes === 0) return res.status(404).json({ error: "Product niet gevonden." });
+        res.json({ message: "Product verwijderd." });
+    });
+});
+
 // --- ORDERS ---
 // Bestelling plaatsen
 app.post('/api/send', (req, res) => {
@@ -327,7 +529,7 @@ async function consumeMessages(queueName = QUEUE_NAME) {
                 messages.push(decrypted);
                 channel.ack(msg);
             } catch (e) {
-                console.error('Decrypt Error:', e);
+                console.error('Decrypt Fout:', e);
                 channel.nack(msg, false, false);
             }
         }
@@ -335,7 +537,7 @@ async function consumeMessages(queueName = QUEUE_NAME) {
         setTimeout(() => { if (connection) connection.close(); }, 200);
         return messages;
     } catch (e) {
-        console.error('Consume Error:', e);
+        console.error('Consume Fout:', e);
         if (connection) connection.close();
         return [];
     }

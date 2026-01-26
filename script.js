@@ -59,9 +59,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const userJson = localStorage.getItem('user');
         const userLabel = document.getElementById('user-label');
         const userActions = document.getElementById('user-actions');
+        const adminBtn = document.getElementById('admin-btn');
 
         if (userJson) {
             const user = JSON.parse(userJson);
+
+            // Toon Admin knop als rol correct is
+            if (adminBtn && (user.role === 'admin' || user.role === 'super-admin')) {
+                adminBtn.style.display = 'inline-block';
+            }
+
             userLabel.textContent = user.firstName;
             userActions.innerHTML = `
                 <a href="profile.html" style="text-decoration: none; color: var(--dark-bg); font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">

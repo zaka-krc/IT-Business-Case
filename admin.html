@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Techno | Beheer Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <style>
+        /* Admin Specifieke Styles (Aanvulling op style.css) */
+        .admin-container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        /* Tabs Styling Override */
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 2rem;
+            background: white;
+            border-radius: 12px;
+            padding: 0.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            padding: 1.2rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            color: #7f8c8d;
+            border-radius: 8px;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .tab-btn:hover {
+            background: #f8f9fa;
+            color: var(--dark-bg);
+        }
+
+        .tab-btn.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: 0 4px 10px rgba(255, 107, 107, 0.3);
+        }
+
+        /* Toolbar & Filters */
+        .toolbar {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-container {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #95a5a6;
+            font-size: 1.2rem;
+        }
+
+        .search-input-custom {
+            width: 100%;
+            padding: 0.8rem 1rem 0.8rem 2.8rem;
+            border: 2px solid #f1f3f5;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        .search-input-custom:focus {
+            border-color: var(--secondary-color);
+            outline: none;
+        }
+
+        .filter-select {
+            padding: 0.8rem 1.5rem;
+            border: 2px solid #f1f3f5;
+            border-radius: 10px;
+            background: white;
+            font-weight: 600;
+            color: var(--text-color);
+            cursor: pointer;
+            min-width: 150px;
+        }
+
+        .filter-select:focus {
+            border-color: var(--secondary-color);
+            outline: none;
+        }
+
+        /* Table Styling */
+        .table-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            border: 1px solid #f0f0f0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 1.2rem 1.5rem;
+            text-align: left;
+            border-bottom: 1px solid #f8f9fa;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 700;
+            color: var(--text-color);
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            user-select: none;
+        }
+
+        th:hover {
+            background: #e9ecef;
+            color: var(--primary-color);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: #fbfbfb;
+        }
+
+        /* Badges */
+        .role-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .role-super-admin {
+            background: #ffeaa7;
+            color: #d35400;
+        }
+
+        .role-admin {
+            background: #81ecec;
+            color: #008080;
+        }
+
+        .role-user {
+            background: #dfe6e9;
+            color: #636e72;
+        }
+
+        /* Action Buttons */
+        .action-btn {
+            width: 35px;
+            height: 35px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.5rem;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .edit-btn {
+            background: #FFF3CD;
+            color: #856404;
+        }
+
+        .edit-btn:hover {
+            background: #ffeeba;
+            transform: translateY(-2px);
+        }
+
+        .delete-btn {
+            background: #F8D7DA;
+            color: #721C24;
+        }
+
+        .delete-btn:hover {
+            background: #f5c6cb;
+            transform: translateY(-2px);
+        }
+
+        /* GENERIC POPUP OVERLAY */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(44, 62, 80, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .popup-overlay.active {
+            display: flex;
+        }
+
+        .popup-content {
+            background: white;
+            width: 100%;
+            max-width: 500px;
+            border-radius: 16px;
+            padding: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: popupIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+        }
+
+        .popup-header {
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #f8f9fa;
+            padding-bottom: 1rem;
+        }
+
+        .popup-header h2 {
+            margin: 0;
+            color: var(--dark-bg);
+            font-size: 1.5rem;
+        }
+
+        @keyframes popupIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <!-- Center Title (Absolute) -->
+        <div class="header-center-absolute">
+            <div class="logo">TECHNOLOGY BEHEER</div>
+        </div>
+
+        <div class="header-content-wrapper">
+            <!-- Left Side -->
+            <div class="header-left">
+                <a href="index.html" class="nav-btn">
+                    <ion-icon name="arrow-back-outline"></ion-icon> Terug naar Winkel
+                </a>
+            </div>
+
+            <!-- Right Side Wrapper (Admin Btn + User Info) -->
+            <div class="header-right-wrapper">
+                <!-- User Info -->
+                <div id="admin-user-info" class="user-profile-badge">
+                    Laden...
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="admin-container">
+
+        <!-- TEXT BASED TAB NAVIGATION -->
+        <h1 style="text-align: left; margin-bottom: 0.5rem; font-size: 1.5rem; color: #7f8c8d; font-weight: 600;">
+            Dashboard</h1>
+        <div class="tabs"
+            style="justify-content: flex-start; gap: 2rem; border-bottom: 3px solid #eee; padding: 0; background: transparent; box-shadow: none; border-radius: 0;">
+            <button class="tab-btn active" data-tab="products"
+                style="flex: 0; padding: 0.5rem 0; border-radius: 0; border: none; border-bottom: 3px solid transparent; color: #95a5a6; font-size: 1.2rem;">
+                Product Beheer
+            </button>
+            <button class="tab-btn" data-tab="users"
+                style="flex: 0; padding: 0.5rem 0; border-radius: 0; border: none; border-bottom: 3px solid transparent; color: #95a5a6; font-size: 1.2rem;">
+                User Beheer
+            </button>
+        </div>
+        <style>
+            /* Local override voor specifieke Text Tab Style */
+            .tabs .tab-btn.active {
+                color: var(--dark-bg) !important;
+                border-bottom: 3px solid var(--primary-color) !important;
+                background: transparent !important;
+                box-shadow: none !important;
+            }
+
+            .tabs .tab-btn:hover {
+                color: var(--primary-color) !important;
+                background: transparent !important;
+            }
+        </style>
+
+        <!-- Producten Sectie -->
+        <div id="products-section" class="section">
+            <div class="toolbar">
+                <div class="search-container">
+                    <ion-icon name="search-outline" class="search-icon"></ion-icon>
+                    <input type="text" id="product-search" class="search-input-custom"
+                        placeholder="Zoek op Product Naam of ID...">
+                </div>
+                <!-- Create Button Product -->
+                <button class="checkout-btn" style="width: auto; padding: 0.8rem 1.5rem;"
+                    onclick="openCreatePopup('product')">
+                    <ion-icon name="add-circle-outline" style="margin-right: 0.5rem;"></ion-icon>
+                    Nieuw Product Toevoegen
+                </button>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('products', 'id')">ID <ion-icon
+                                    name="swap-vertical-outline"></ion-icon></th>
+                            <th onclick="sortTable('products', 'name')">Product Naam <ion-icon
+                                    name="swap-vertical-outline"></ion-icon></th>
+                            <th onclick="sortTable('products', 'price')">Prijs <ion-icon
+                                    name="swap-vertical-outline"></ion-icon></th>
+                            <th onclick="sortTable('products', 'stock')">Voorraad <ion-icon
+                                    name="swap-vertical-outline"></ion-icon></th>
+                            <th>Acties</th>
+                        </tr>
+                    </thead>
+                    <tbody id="product-list">
+                        <!-- JS Injected -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Users Sectie -->
+        <div id="users-section" class="section" style="display: none;">
+            <div class="toolbar">
+                <div class="search-container">
+                    <ion-icon name="search-outline" class="search-icon"></ion-icon>
+                    <input type="text" id="user-search" class="search-input-custom"
+                        placeholder="Zoek op Voornaam, Achternaam of Email...">
+                </div>
+
+                <select id="user-role-filter" class="filter-select">
+                    <option value="all">Alle Rollen</option>
+                    <option value="user">Gebruikers (User)</option>
+                    <option value="admin">Administrators</option>
+                    <option value="super-admin">Super Admin</option>
+                </select>
+
+                <!-- Create Button User -->
+                <button class="checkout-btn" style="width: auto; padding: 0.8rem 1.5rem;"
+                    onclick="openCreatePopup('user')">
+                    <ion-icon name="person-add-outline" style="margin-right: 0.5rem;"></ion-icon>
+                    Nieuwe Gebruiker Toevoegen
+                </button>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('users', 'id')">ID <ion-icon name="swap-vertical-outline"></ion-icon>
+                            </th>
+                            <th onclick="sortTable('users', 'last_name')">Volledige Naam <ion-icon
+                                    name="swap-vertical-outline"></ion-icon></th>
+                            <th onclick="sortTable('users', 'email')">Email Adres <ion-icon
+                                    name="swap-vertical-outline"></ion-icon></th>
+                            <th onclick="sortTable('users', 'role')">Rol <ion-icon
+                                    name="swap-vertical-outline"></ion-icon></th>
+                            <th>Acties</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-list">
+                        <!-- JS Injected -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Popup Overlay -->
+    <div id="popup-overlay" class="popup-overlay">
+        <div class="popup-content">
+            <div class="popup-header">
+                <h2 id="popup-title">Bewerken</h2>
+            </div>
+            <form id="popup-form">
+                <input type="hidden" id="popup-id">
+                <input type="hidden" id="popup-type"> <!-- 'product' of 'user' -->
+
+                <div id="popup-dynamic-fields">
+                    <!-- Fields worden hier met JS ingeladen -->
+                </div>
+
+                <div class="btn-group" style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                    <button type="button" class="nav-btn" onclick="closePopup()">Annuleren</button>
+                    <button type="submit" class="checkout-btn" style="width: auto;">Opslaan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+
+</html>
