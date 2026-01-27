@@ -143,11 +143,11 @@ setTimeout(() => {
     console.log('   🏠 Frontend:  http://localhost:3000/index.html');
     console.log('   🔐 Login:     http://localhost:3000/login.html');
     console.log('   📦 Products:  http://localhost:3000/api/products');
-    console.log('\n🎮  Controls:');
+    console.log('\n🎮  Controls (via remote.js):');
+    console.log('   Run: node remote.js');
     console.log('   [s] Stop Salesforce Worker (Test DLQ)');
     console.log('   [r] Restart Salesforce Worker');
-    console.log('   [q] Quit Application');
-    console.log('\n⌨️  Druk op CTRL+C om te stoppen\n');
+    console.log('   [q] Quit Application\n');
 }, 2000);
 
 // Stop Salesforce Worker function
@@ -171,21 +171,29 @@ function stopSalesforceWorker() {
     }
 }
 
-// Handle Keyboard Input
-const readline = require('readline');
-readline.emitKeypressEvents(process.stdin);
-if (process.stdin.isTTY) {
-    process.stdin.setRawMode(true);
-}
+// Handle Remote Control via Socket.io
+const { Server } = require("socket.io");
+const io = new Server(6000, {
+    cors: { origin: "*" }
+});
 
-process.stdin.on('keypress', (str, key) => {
-    if (key.ctrl && key.name === 'c') {
-        killAll();
-    } else if (key.name === 'q') {
-        killAll();
-    } else if (key.name === 's') {
+console.log('\n📡 Remote control server listening on port 6000');
+
+io.on("connection", (socket) => {
+    // console.log(`New connection: ${socket.id}`);
+
+    socket.on("command:s", () => {
+        console.log("\n[Remote] Command received: Stop Salesforce Worker");
         stopSalesforceWorker();
-    } else if (key.name === 'r') {
+    });
+
+    socket.on("command:r", () => {
+        console.log("\n[Remote] Command received: Restart Salesforce Worker");
         startSalesforceWorker();
-    }
+    });
+
+    socket.on("command:q", () => {
+        console.log("\n[Remote] Command received: Quit");
+        killAll();
+    });
 });
