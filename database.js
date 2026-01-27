@@ -1,9 +1,9 @@
 const sqlite3 = require('sqlite3').verbose();
 
 // 1. Verbinding maken
-const db = new sqlite3.Database('./dev.db', (err) => {
+const db = new sqlite3.Database(process.env.NODE_ENV === 'test' ? ':memory:' : './dev.db', (err) => {
     if (err) console.error('Fout bij openen database:', err.message);
-    else console.log('✅ Verbonden met de SQLite database.');
+    else if (process.env.NODE_ENV !== 'test') console.log('✅ Verbonden met de SQLite database.');
 });
 
 db.serialize(() => {

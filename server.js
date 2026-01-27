@@ -638,9 +638,13 @@ app.get('/api/orders/:userId', (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log(`RabbitMQ Target: ${RABBITMQ_URL}`);
-    console.log(`Fanout Exchange: ${EXCHANGE_NAME}`);
-    console.log(`Queues: ${QUEUE_NAME}, ${BACKUP_QUEUE_NAME}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+        console.log(`RabbitMQ Target: ${RABBITMQ_URL}`);
+        console.log(`Fanout Exchange: ${EXCHANGE_NAME}`);
+        console.log(`Queues: ${QUEUE_NAME}, ${BACKUP_QUEUE_NAME}`);
+    });
+}
+
+module.exports = app;

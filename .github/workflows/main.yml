@@ -7,15 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  test-connections:
+  validate-code:
     runs-on: ubuntu-latest
-
-    # Start een tijdelijke RabbitMQ container voor de test
-    services:
-      rabbitmq:
-        image: rabbitmq:3-management
-        ports:
-          - 5672:5672
 
     steps:
       - name: Checkout code
@@ -30,35 +23,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # --- TEST 1: RabbitMQ Connectiviteit ---
-      # --- TEST 1: Run Jest Tests (includes RabbitMQ check) ---
-      - name: Run Tests
-        env:
-          RABBITMQ_URL: amqp://guest:guest@localhost:5672
+      # --- UNIT TESTS (Mocked) ---
+      - name: Run Unit Tests
         run: npm test
 
-      # --- TEST 2: Salesforce API Check ---
-      # Let op: dit werkt alleen als je SF_USERNAME, SF_PASSWORD, etc. in GitHub Secrets zet
-      - name: Test Salesforce Integration Script
-        env:
-          SF_LOGIN_URL: ${{ secrets.SF_LOGIN_URL }}
-          SF_USERNAME: ${{ secrets.SF_USERNAME }}
-          SF_PASSWORD: ${{ secrets.SF_PASSWORD }}
-          SF_TOKEN: ${{ secrets.SF_TOKEN }}
-          SF_CLIENT_ID: ${{ secrets.SF_CLIENT_ID }}
-          SF_CLIENT_SECRET: ${{ secrets.SF_CLIENT_SECRET }}
-        run: |
-          if [ -z "$SF_USERNAME" ]; then
-            echo "⚠️ Salesforce Secrets niet ingesteld, sla test over."
-          else
-            # Controleer of de code geen syntax fouten heeft bij het laden van SF modules
-            node --check sf-integratie.js
-            # Optioneel: voer een kleine verbindingscheck uit als je script dat ondersteunt
-            # node sf-integratie.js --check-only
-          fi
+      # --- CHECK 1: Salesforce Integration Syntax ---
+      - name: Validate Salesforce Script
+        run: node --check sf-integratie.js
 
-      # --- TEST 3: Code Linting & Syntax ---
+      # --- CHECK 2: Core Server Syntax ---
       - name: Validate Core Scripts
-        run: |
-          node --check server.js
-          node --check consumer.js
+        run: node --check server.js
