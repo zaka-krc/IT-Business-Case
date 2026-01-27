@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DEBMAS07>
+    <IDOC BEGIN="1">
+        <EDI_DC40 SEGMENT="1">
+            <IDOCTYP>DEBMAS07</IDOCTYP>
+            <MESTYP>DEBMAS</MESTYP>
+            <CREDAT>20260127</CREDAT>
+        </EDI_DC40>
+        <E1KNA1M SEGMENT="1">
+            <ANRED>Firma</ANRED> <!-- Default Title -->
+            <NAME1>SAP Tester</NAME1>
+            <SORTL>TESTER</SORTL>
+            <STRAS>Wetstraat 16</STRAS>
+            <ORT01>Brussel</ORT01>
+            <PSTLZ>1000</PSTLZ>
+            <LAND1>BE</LAND1>
+            <SPRAS>N</SPRAS>
+            <STCEG></STCEG>
+        </E1KNA1M>
+        <E1KNB1M SEGMENT="1">
+            <BUKRS>1710</BUKRS> <!-- Company Code -->
+            <AKONT>140000</AKONT> <!-- Recon Account -->
+        </E1KNB1M>
+        <E1KNVVM SEGMENT="1">
+            <VKORG>1710</VKORG>
+            <VTWEG>10</VTWEG>
+            <SPART>00</SPART>
+            <WAERS>EUR</WAERS>
+            <KTGRD>01</KTGRD>
+        </E1KNVVM>
+    </IDOC>
+</DEBMAS07>

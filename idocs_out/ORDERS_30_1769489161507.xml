@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ORDERS05>
+    <IDOC BEGIN="1">
+        <EDI_DC40 SEGMENT="1">
+            <TABNAM>EDI_DC40</TABNAM>
+            <DIRECT>2</DIRECT>
+            <IDOCTYP>ORDERS05</IDOCTYP>
+            <MESTYP>ORDERS</MESTYP>
+            <SNDPOR>SAP_PI</SNDPOR>
+            <SNDPRT>LS</SNDPRT>
+            <RCVPOR>S4HANA</RCVPOR>
+            <RCVPRT>LS</RCVPRT>
+            <CREDAT>20260127</CREDAT>
+            <BSTZDAT>20260127</BSTZDAT> 
+        </EDI_DC40>
+        <E1EDK01 SEGMENT="1">
+            <CURCY>EUR</CURCY>
+            <BELNR>30</BELNR>
+            <BSART>OR</BSART> <!-- Standard Order -->
+            <RECIPNT_NO>1</RECIPNT_NO>
+        </E1EDK01>
+        <E1EDK14 SEGMENT="1">
+            <QUALF>008</QUALF>
+            <ORGID>1710</ORGID> <!-- Sales Org (Example) -->
+        </E1EDK14>
+        <E1EDK14 SEGMENT="1">
+            <QUALF>007</QUALF>
+            <ORGID>10</ORGID> <!-- Dist Channel -->
+        </E1EDK14>
+        <E1EDK14 SEGMENT="1">
+            <QUALF>006</QUALF>
+            <ORGID>00</ORGID> <!-- Division -->
+        </E1EDK14>
+        <E1EDKA1 SEGMENT="1">
+            <PARVW>AG</PARVW> <!-- Sold-To -->
+            <PARTN>yaya250@live.fr</PARTN> <!-- Mapping key -->
+            <NAME1>Yazid El Yazghi</NAME1>
+            <STRAS>Rue du Paruck 56</STRAS>
+            <ORT01>Bru</ORT01>
+            <PSTLZ>1080</PSTLZ>
+            <LAND1>br</LAND1>
+            <TELF1>yaya250@live.fr</TELF1>
+        </E1EDKA1>
+        
+        <E1EDP01 SEGMENT="1">
+            <POSEX>000010</POSEX>
+            <MATNR>PROD-001</MATNR>
+            <ARKTX>Premium Laptop Pro</ARKTX>
+            <MENGE>1</MENGE>
+            <VRKME>ST</VRKME> <!-- Stuks -->
+            <NETPR>999</NETPR>
+            <WAER2>EUR</WAER2>
+        </E1EDP01>
+    </IDOC>
+</ORDERS05>
