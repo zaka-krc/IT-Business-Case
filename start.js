@@ -86,7 +86,7 @@ function startSalesforceWorker() {
         } else if (output.includes('RABBITMQ_URL') || output.includes('SF_USERNAME')) {
             console.log('\n⚠️ Salesforce Worker niet gestart: Configuratie ontbreekt (optioneel)');
         } else {
-            process.stderr.write(`[SF-WORKER ERROR] ${output}`);
+            process.stdout.write(`[SF-WORKER ERROR] ${output}`);
         }
     });
 
@@ -117,7 +117,7 @@ function startBackupWorker() {
     });
 
     backupWorker.stderr.on('data', (data) => {
-        process.stderr.write(`[BACKUP ERROR] ${data}`);
+        process.stdout.write(`[BACKUP ERROR] ${data}`);
     });
 }
 
@@ -137,7 +137,7 @@ function startSapWorker() {
     });
 
     sapWorker.stderr.on('data', (data) => {
-        process.stderr.write(`[SAP-ERROR] ${data}`);
+        process.stdout.write(`[SAP-ERROR] ${data}`);
     });
 }
 

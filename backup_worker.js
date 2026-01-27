@@ -12,9 +12,21 @@ const MY_BACKUP_QUEUE = 'salesforce_backup_local';
 const RETENTION_DAYS = 90;
 const DB_FILE = './backup.db';
 
+const CA_CERT_PATH = './certs/ca_certificate.pem';
+
 // SSL Opties (voor RabbitMQ verbinding)
-// Fix for self-signed certificates if needed
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+let sslOptions = {};
+try {
+    if (fs.existsSync(CA_CERT_PATH)) {
+        sslOptions = {
+            ca: [fs.readFileSync(CA_CERT_PATH)],
+            servername: 'rabbitmq-server',
+            checkServerIdentity: () => undefined
+        };
+    }
+} catch (err) {
+    console.error("Certificaat niet gevonden:", err);
+}
 
 // --- DATABASE INITIALISATIE ---
 const db = new sqlite3.Database(DB_FILE, (err) => {
@@ -74,8 +86,8 @@ async function startWorker() {
     setInterval(cleanupOldRecords, 24 * 60 * 60 * 1000);
 
     try {
-        const sslOptions = { checkServerIdentity: () => undefined };
         const connection = await amqp.connect(RABBITMQ_URL, sslOptions);
+        console.log(`✅ Backup Worker Verbonden met RabbitMQ!`);
         const channel = await connection.createChannel();
 
         // 1. Zorg dat de Exchange bestaat (Fanout)

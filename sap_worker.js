@@ -52,6 +52,7 @@ async function startSapWorker() {
         // Bind Queue to Exchange (Fanout: ontvangt alle berichten van de exchange)
         await channel.bindQueue(QUEUE_NAME, EXCHANGE_NAME, '');
 
+        console.log(`✅ SAP Worker Verbonden met RabbitMQ!`);
         console.log(`[*] Wachten op orders in '${QUEUE_NAME}' via Exchange '${EXCHANGE_NAME}'...`);
 
         channel.consume(QUEUE_NAME, (msg) => {
