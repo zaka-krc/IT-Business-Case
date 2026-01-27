@@ -43,6 +43,7 @@ initDb.on('close', (code) => {
         if (output.includes('Server running')) {
             console.log('\n✅ Server is actief!\n');
             startSalesforceWorker();
+            startSapWorker(); // NEW: Start SAP integration
             startBackupWorker();
         }
     });
@@ -77,19 +78,25 @@ function startSalesforceWorker() {
     });
 
     sfWorker.stderr.on('data', (data) => {
-        const error = data.toString();
-        // If RabbitMQ or Salesforce is not configured, show warning but don't crash
-        if (error.includes('RABBITMQ_URL') || error.includes('SF_USERNAME')) {
+        const output = data.toString();
+
+        // Distinguish between Warnings and Errors
+        if (output.includes('Warning') || output.includes('warning') || output.includes('⚠️')) {
+            process.stdout.write(`[SF-WORKER WARN] ${output}`);
+        } else if (output.includes('RABBITMQ_URL') || output.includes('SF_USERNAME')) {
             console.log('\n⚠️ Salesforce Worker niet gestart: Configuratie ontbreekt (optioneel)');
-            console.log('   Tip: Configureer .env met RABBITMQ_URL en Salesforce credentials\n');
         } else {
-            process.stderr.write(`[SF-WORKER ERROR] ${error}`);
+            process.stderr.write(`[SF-WORKER ERROR] ${output}`);
         }
     });
 
-    sfWorker.on('close', (code) => {
+    sfWorker.on('close', (code, signal) => {
         if (code !== 0 && code !== null) {
             console.log(`\n⚠️ Salesforce Worker gestopt met code ${code}`);
+        } else if (signal) {
+            // Only log if it wasn't us (we use SIGKILL in stopSalesforceWorker, usually doesn't need log if we triggered it)
+            // But good to know.
+            console.log(`\n🛑 Salesforce Worker beëindigd door signaal: ${signal}`);
         }
     });
 }
@@ -114,6 +121,26 @@ function startBackupWorker() {
     });
 }
 
+// Step 5: Start SAP Worker
+function startSapWorker() {
+    console.log('🏭 Stap 5: SAP IDoc Worker starten...');
+
+    const sapWorker = spawn('node', ['sap_worker.js'], {
+        cwd: __dirname,
+        stdio: 'pipe',
+        shell: true
+    });
+    processes.push({ name: 'SAP-Worker', process: sapWorker });
+
+    sapWorker.stdout.on('data', (data) => {
+        process.stdout.write(`[SAP-IDOC] ${data}`);
+    });
+
+    sapWorker.stderr.on('data', (data) => {
+        process.stderr.write(`[SAP-ERROR] ${data}`);
+    });
+}
+
 // Cleanup function
 function killAll() {
     console.log('\n\n🛑 Alle processen stoppen...');
@@ -121,7 +148,20 @@ function killAll() {
         console.log(`   Stopping ${name}...`);
         process.kill();
     });
-    process.exit(0);
+
+    // Check if running in PM2 and stop the process explicitly
+    if (process.env.pm_id) {
+        console.log(`   Stopping PM2 process ${process.env.pm_id}...`);
+        exec(`pm2 stop ${process.env.pm_id}`, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`Error stopping PM2 process: ${error}`);
+                process.exit(1);
+            }
+            process.exit(0);
+        });
+    } else {
+        process.exit(0);
+    }
 }
 
 // Handle termination signals
@@ -146,8 +186,7 @@ setTimeout(() => {
     console.log('\n🎮  Controls (via remote.js):');
     console.log('   Run: node remote.js');
     console.log('   [s] Stop Salesforce Worker (Test DLQ)');
-    console.log('   [r] Restart Salesforce Worker');
-    console.log('   [q] Quit Application\n');
+    console.log('   [r] Restart Salesforce Worker\n');
 }, 2000);
 
 // Stop Salesforce Worker function
@@ -172,12 +211,15 @@ function stopSalesforceWorker() {
 }
 
 // Handle Remote Control via Socket.io
+const httpServer = require("http").createServer();
 const { Server } = require("socket.io");
-const io = new Server(6000, {
+const io = new Server(httpServer, {
     cors: { origin: "*" }
 });
 
-console.log('\n📡 Remote control server listening on port 6000');
+httpServer.listen(6000, "0.0.0.0", () => {
+    console.log('\n📡 Remote control server listening on port 6000 (0.0.0.0)');
+});
 
 io.on("connection", (socket) => {
     // console.log(`New connection: ${socket.id}`);
@@ -190,10 +232,5 @@ io.on("connection", (socket) => {
     socket.on("command:r", () => {
         console.log("\n[Remote] Command received: Restart Salesforce Worker");
         startSalesforceWorker();
-    });
-
-    socket.on("command:q", () => {
-        console.log("\n[Remote] Command received: Quit");
-        killAll();
     });
 });

@@ -19,6 +19,9 @@ db.serialize(() => {
         street TEXT,
         house_number TEXT,
         zipcode TEXT,
+        city TEXT,
+        country TEXT,
+        vat_number TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`, (err) => {
@@ -28,17 +31,34 @@ db.serialize(() => {
 
             // Migratie: Check of 'role' kolom bestaat (voor bestaande databases)
             db.all("PRAGMA table_info(users)", (err, columns) => {
-                const hasRole = columns.some(col => col.name === 'role');
-                if (!hasRole) {
+                const columnNames = columns.map(c => c.name);
+
+                // 1. Role Check
+                if (!columnNames.includes('role')) {
                     console.log("⚠️ Kolom 'role' ontbreekt, wordt toegevoegd...");
-                    db.run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'", (err) => {
-                        if (err) console.error("Fout bij toevoegen role kolom:", err.message);
-                        else console.log("✅ Kolom 'role' succesvol toegevoegd.");
-                        seedSuperAdmin();
-                    });
-                } else {
-                    seedSuperAdmin();
+                    db.run("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'");
                 }
+
+                // 2. City Check
+                if (!columnNames.includes('city')) {
+                    console.log("⚠️ Kolom 'city' ontbreekt, wordt toegevoegd...");
+                    db.run("ALTER TABLE users ADD COLUMN city TEXT");
+                }
+
+                // 3. Country Check
+                if (!columnNames.includes('country')) {
+                    console.log("⚠️ Kolom 'country' ontbreekt, wordt toegevoegd...");
+                    db.run("ALTER TABLE users ADD COLUMN country TEXT");
+                }
+
+                // 4. VAT Check
+                if (!columnNames.includes('vat_number')) {
+                    console.log("⚠️ Kolom 'vat_number' ontbreekt, wordt toegevoegd...");
+                    db.run("ALTER TABLE users ADD COLUMN vat_number TEXT");
+                }
+
+                // Seed super admin after migrations
+                seedSuperAdmin();
             });
         }
     });
@@ -106,6 +126,20 @@ db.serialize(() => {
     )`, (err) => {
         if (err) console.error("Fout bij aanmaken orders tabel:", err.message);
         else console.log("✅ Orders tabel aangemaakt/bestaat al.");
+    });
+
+    // 3c. Order Items Tabel (Nieuw voor SAP structuur)
+    db.run(`CREATE TABLE IF NOT EXISTS order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        product_code TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        price REAL NOT NULL,
+        name TEXT,
+        FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+    )`, (err) => {
+        if (err) console.error("Fout bij aanmaken order_items tabel:", err.message);
+        else console.log("✅ Order Items tabel aangemaakt/bestaat al.");
     });
 
     // 4. Seed data toevoegen als producten tabel leeg is

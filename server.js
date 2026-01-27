@@ -119,9 +119,9 @@ app.post('/api/register', async (req, res) => {
 
             // Insert new user
             db.run(
-                `INSERT INTO users (salesforce_external_id, email, password_hash, first_name, last_name, street, house_number, zipcode, role) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'user')`,
-                [salesforceId, email, hashedPassword, firstName, lastName, '', '', ''],
+                `INSERT INTO users (salesforce_external_id, email, password_hash, first_name, last_name, street, house_number, zipcode, city, country, role) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user')`,
+                [salesforceId, email, hashedPassword, firstName, lastName, '', '', '', '', ''],
                 function (err) {
                     if (err) {
                         console.error('Insert User Error:', err);
@@ -135,7 +135,8 @@ app.post('/api/register', async (req, res) => {
                             firstName,
                             lastName,
                             email,
-                            salesforce_external_id: salesforceId
+                            salesforce_external_id: salesforceId,
+                            role: 'user'
                         }
                     });
                 }
@@ -188,7 +189,9 @@ app.post('/api/login', async (req, res) => {
                     address: {
                         street: user.street,
                         number: user.house_number,
-                        zipcode: user.zipcode
+                        zipcode: user.zipcode,
+                        city: user.city,
+                        country: user.country
                     }
                 }
             });
@@ -202,11 +205,11 @@ app.post('/api/login', async (req, res) => {
 // UPDATE USER (Adres)
 app.put('/api/user/:id', (req, res) => {
     const userId = req.params.id;
-    const { street, number, zipcode } = req.body;
+    const { street, number, zipcode, city, country } = req.body;
 
     db.run(
-        'UPDATE users SET street = ?, house_number = ?, zipcode = ? WHERE id = ?',
-        [street, number, zipcode, userId],
+        'UPDATE users SET street = ?, house_number = ?, zipcode = ?, city = ?, country = ? WHERE id = ?',
+        [street, number, zipcode, city, country, userId],
         function (err) {
             if (err) {
                 console.error('Update Error:', err);
@@ -235,7 +238,9 @@ app.put('/api/user/:id', (req, res) => {
                         address: {
                             street: user.street,
                             number: user.house_number,
-                            zipcode: user.zipcode
+                            zipcode: user.zipcode,
+                            city: user.city,
+                            country: user.country
                         }
                     }
                 });
@@ -528,6 +533,13 @@ app.post('/api/send', (req, res) => {
                     }
 
                     const newOrderId = this.lastID || Date.now();
+
+                    // C. NEW: Insert into order_items table for structural storage
+                    const itemInsertStmt = db.prepare("INSERT INTO order_items (order_id, product_code, quantity, price, name) VALUES (?, ?, ?, ?, ?)");
+                    enrichedItems.forEach(item => {
+                        itemInsertStmt.run(newOrderId, item.productCode, item.quantity, item.price, item.name);
+                    });
+                    itemInsertStmt.finalize();
 
                     // Update orderData voor RabbitMQ
                     const finalOrderPayload = {

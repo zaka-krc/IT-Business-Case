@@ -13,7 +13,7 @@ socket.on("connect", () => {
     console.log('\n🎮  Remote Controls:');
     console.log('   [s] Stop Salesforce Worker');
     console.log('   [r] Restart Salesforce Worker');
-    console.log('   [q] Quit Application (and this remote)');
+    console.log('   [Ctrl+c] Exit Remote Control');
     console.log('\n⌨️  Press keys to send commands...');
 });
 
@@ -37,10 +37,6 @@ process.stdin.on('keypress', (str, key) => {
     if (key.ctrl && key.name === 'c') {
         console.log("Exiting remote...");
         process.exit(0);
-    } else if (key.name === 'q') {
-        console.log("Sending: Quit");
-        socket.emit("command:q");
-        setTimeout(() => process.exit(0), 100); // Give time to send
     } else if (key.name === 's') {
         console.log("Sending: Stop Salesforce Worker");
         socket.emit("command:s");

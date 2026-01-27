@@ -38,6 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('street').value = user.address.street || '';
         document.getElementById('houseNumber').value = user.address.number || '';
         document.getElementById('zipcode').value = user.address.zipcode || '';
+        document.getElementById('city').value = user.address.city || '';
+        document.getElementById('country').value = user.address.country || '';
     }
 
     // Set header user info
@@ -87,7 +89,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 email: formData.get('email'),
                 straat: formData.get('street'),
                 huisnummer: formData.get('houseNumber'),
-                postcode: formData.get('zipcode')
+                postcode: formData.get('zipcode'),
+                stad: formData.get('city'),
+                land: formData.get('country')
             }
         };
 
