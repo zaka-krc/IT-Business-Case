@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mijn Bestellingen | Techno</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <style>
+        .orders-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .order-card {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .order-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .status-Pending { background: #fff3cd; color: #856404; }
+        .status-Processing { background: #cce5ff; color: #004085; }
+        .status-Completed { background: #d4edda; color: #155724; }
+        .status-Failed { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+
+    <header style="padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between;">
+        <a href="index.html" style="color: inherit; text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+            <ion-icon name="arrow-back-outline"></ion-icon> Terug naar winkel
+        </a>
+        <div class="logo">Mijn Bestellingen</div>
+        <div style="width: 100px;"></div> <!-- Spacer -->
+    </header>
+
+    <main>
+        <div class="orders-container">
+            <h2 style="margin-bottom: 2rem;">Bestelgeschiedenis</h2>
+            <div id="orders-list">
+                <p style="color: #666; text-align: center;">Laden...</p>
+            </div>
+        </div>
+    </main>
+
+    <script src="orders.js"></script>
+</body>
+</html>

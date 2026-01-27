@@ -15,10 +15,17 @@ document.addEventListener('DOMContentLoaded', () => {
 */
 
     let products = [];
-
-
-
     let cart = [];
+
+    // Load cart from localStorage if present
+    try {
+        const storedCart = localStorage.getItem('techno_cart');
+        if (storedCart) {
+            cart = JSON.parse(storedCart);
+        }
+    } catch (e) {
+        console.error("Failed to load cart from storage", e);
+    }
 
     // DOM Elementen
     const productGrid = document.getElementById('product-grid');

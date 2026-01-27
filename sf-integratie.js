@@ -36,6 +36,20 @@ async function startSalesforceWorker() {
         await conn.login(username, password + token);
         console.log("✅ Salesforce verbinding geslaagd!");
 
+        // --- PRE-FETCH: Haal Standard Pricebook ID op ---
+        let standardPricebookId;
+        try {
+            const pbResult = await conn.sobject("Pricebook2").find({ IsStandard: true }).limit(1).execute();
+            if (pbResult.length > 0) {
+                standardPricebookId = pbResult[0].Id;
+                console.log(`📘 Standard Pricebook ID found: ${standardPricebookId}`);
+            } else {
+                console.warn("⚠️ Geen Standard Pricebook gevonden. Line Items kunnen mogelijk fout gaan.");
+            }
+        } catch (err) {
+            console.error("Fout bij ophalen Pricebook:", err.message);
+        }
+
         // 2. Verbinden met RabbitMQ
         console.log("🔌 Verbinden met RabbitMQ...");
 
@@ -46,11 +60,23 @@ async function startSalesforceWorker() {
 
         const mqConn = await amqp.connect(RABBITMQ_URL, sslOptions);
         const channel = await mqConn.createChannel();
+        const RESPONSE_QUEUE_NAME = 'salesforce_response_queue';
+
         await channel.assertQueue(QUEUE_NAME, { durable: true });
-        channel.prefetch(1);
+        await channel.assertQueue(RESPONSE_QUEUE_NAME, { durable: true });
+        // Removed prefetch(1) to prevent blocking by unacked messages
+
+        // --- TRACKING: Keep track of created Opportunities for polling ---
+        const activeOpportunities = new Map(); // SF_ID -> { orderId, stage }
+
+        const trackOpportunity = (orderId, sfId) => {
+            activeOpportunities.set(sfId, { orderId, stage: 'Prospecting' });
+            console.log(`📍 Tracking Opportunity ${sfId} for Order ${orderId}`);
+        };
 
         console.log(`📥 Worker actief. Wachten op orders in '${QUEUE_NAME}'...`);
 
+        // --- WORKER LOOP ---
         channel.consume(QUEUE_NAME, async (msg) => {
             if (msg !== null) {
                 try {
@@ -62,23 +88,11 @@ async function startSalesforceWorker() {
                     if (!decryptedString) throw new Error("Decryptie mislukt. Controleer je SECRET_KEY!");
 
                     const data = JSON.parse(decryptedString);
-                    console.log("DEBUG SF-WORKER: received data", JSON.stringify(data));
 
-                    // FALLBACK: Voor oude berichten zonder orderId
-                    if (!data.orderId) {
-                        data.orderId = Date.now(); // Gewoon een nummer, geen 'LEGACY' prefix
-                        console.log("⚠️ Bericht zonder Order ID ontvangen. Nieuw ID gegenereerd:", data.orderId);
-                    }
-                    console.log(`DEBUG-V2: Final Order ID: ${data.orderId}, Type: ${typeof data.orderId}`);
+                    // Check en Fallbacks
+                    if (!data.orderId) data.orderId = Date.now();
+                    if (!data.totalAmount) data.totalAmount = data.items ? data.items.reduce((sum, i) => sum + (i.price * (i.quantity || 1)), 0) : 0;
 
-                    if (!data.orderId || data.orderId === 'undefined') {
-                        throw new Error("CRITICAL: Order ID is still undefined after fallback!");
-                    }
-
-                    if (!data.totalAmount) {
-                        // Probeer te herberekenen of zet op 0
-                        data.totalAmount = data.items ? data.items.reduce((sum, i) => sum + (i.price * (i.quantity || 1)), 0) : 0;
-                    }
                     console.log(`📦 Order ontvangen: ${data.orderId} voor ${data.customer.email}`);
 
                     // --- STAP B: Zoek of maak Contact ---
@@ -104,32 +118,176 @@ async function startSalesforceWorker() {
                     }
 
                     // --- STAP C: Maak Opportunity (Verkoopkans) ---
+                    let descriptionText = 'Geen items ontvangen';
+
+                    if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+                        try {
+                            const itemStrings = [];
+                            for (let i = 0; i < data.items.length; i++) {
+                                const item = data.items[i];
+                                const qty = item.quantity || 1;
+                                const name = item.name || 'Product';
+                                const code = item.productCode || item.product_code || 'N/A';
+                                itemStrings.push(`${qty}x ${name} (${code})`);
+                            }
+                            descriptionText = 'Bestelling: ' + itemStrings.join(', ');
+                        } catch (descErr) {
+                            console.error("Error building description:", descErr);
+                            descriptionText = 'Fout bij items: ' + JSON.stringify(data.items);
+                        }
+                    } else {
+                        descriptionText = 'Items data: ' + JSON.stringify(data.items);
+                    }
+
+                    console.log("Description:", descriptionText);
+
+                    // Create Opportunity
                     const opportunity = await conn.sobject("Opportunity").create({
                         Name: `Order ${data.orderId}`,
-                        StageName: 'Closed Won',
+                        StageName: 'Prospecting',
                         CloseDate: new Date().toISOString().split('T')[0],
                         Amount: data.totalAmount,
                         ContactId: contactId,
-                        Description: `Items: ${data.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}`
+                        Description: descriptionText,
+                        Pricebook2Id: standardPricebookId
                     });
 
                     if (opportunity.success) {
-                        console.log(`✨ Salesforce succesvol bijgewerkt voor Order: ${data.orderId}`);
-                        channel.ack(msg); // Bevestig aan RabbitMQ
+                        console.log(`✨ Opportunity aangemaakt: ${opportunity.id}`);
+
+                        // Track this Opportunity for status polling
+                        trackOpportunity(data.orderId, opportunity.id);
+
+                        // --- STAP C.2: Voeg Producten toe (Line Items) ---
+                        if (data.items && data.items.length > 0 && standardPricebookId) {
+                            try {
+                                const lineItemsToCreate = [];
+
+                                for (const item of data.items) {
+                                    // 1. Zoek PricebookEntry voor dit product
+                                    // We zoeken op ProductCode. Zorg dat je producten in SF een unieke ProductCode hebben (bijv 'PROD-001')
+                                    const productCode = item.productCode || item.product_code;
+
+                                    if (productCode) {
+                                        const pbe = await conn.sobject("PricebookEntry")
+                                            .find({
+                                                Pricebook2Id: standardPricebookId,
+                                                "Product2.ProductCode": productCode,
+                                                IsActive: true
+                                            })
+                                            .limit(1)
+                                            .execute();
+
+                                        if (pbe.length > 0) {
+                                            lineItemsToCreate.push({
+                                                OpportunityId: opportunity.id,
+                                                PricebookEntryId: pbe[0].Id,
+                                                Quantity: item.quantity || 1,
+                                                UnitPrice: item.price
+                                            });
+                                        } else {
+                                            console.warn(`⚠️ Product niet gevonden in Pricebook: ${productCode} (${item.name})`);
+                                        }
+                                    } else {
+                                        console.warn(`⚠️ Item zonder productCode: ${item.name}`);
+                                    }
+                                }
+
+                                if (lineItemsToCreate.length > 0) {
+                                    await conn.sobject("OpportunityLineItem").create(lineItemsToCreate);
+                                    console.log(`🛒 ${lineItemsToCreate.length} producten toegevoegd aan Opportunity.`);
+                                }
+                            } catch (lineItemErr) {
+                                console.error("Fout bij toevoegen OpportunityLineItems:", lineItemErr.message);
+                                // We falen de order niet als items mislukken, description is backup
+                            }
+                        }
+
+                        // --- STAP D: Stuur bevestiging naar Response Queue ---
+                        // NOTE: Status 'created' betekent dat de Opportunity is aangemaakt in SF
+                        // Dit is NIET hetzelfde als 'Completed' - de order blijft 'Processing'
+                        // Alleen 'success' status (bij Closed Won) zet de order op 'Completed'
+                        const responsePayload = {
+                            status: 'created', // NOT 'success' - order should stay in Processing
+                            message: 'Order aangemaakt in Salesforce als Opportunity',
+                            orderId: data.orderId,
+                            salesforceId: opportunity.id,
+                            sfStage: 'Prospecting', // Current SF stage
+                            timestamp: new Date().toISOString()
+                        };
+
+                        const encryptedResponse = CryptoJS.AES.encrypt(JSON.stringify(responsePayload), SECRET_KEY).toString();
+                        channel.sendToQueue(RESPONSE_QUEUE_NAME, Buffer.from(encryptedResponse), { persistent: true });
+                        console.log(`🔙 Bevestiging gestuurd naar ${RESPONSE_QUEUE_NAME}`);
+
+                        channel.ack(msg);
                     } else {
                         throw new Error("Salesforce Opportunity creatie mislukt");
                     }
 
                 } catch (err) {
                     console.error("⚠️ Fout bij verwerken bericht:", err.message);
-                    if (err.errorCode) console.error("   Code:", err.errorCode);
-                    if (err.fields) console.error("   Fields:", err.fields);
-
-                    // Bij fout: zet bericht na 10 seconden terug in de wachtrij
-                    setTimeout(() => channel.nack(msg), 10000);
+                    // ACK the message to remove it from queue (don't requeue failing messages)
+                    channel.ack(msg);
+                    console.log("⚠️ Bericht verwijderd uit queue (fout bij verwerking)");
                 }
             }
         });
+
+        // --- SMART POLLING: Check SF status for our created Opportunities ---
+        // Polling interval - check every 30 seconds
+        setInterval(async () => {
+            if (activeOpportunities.size === 0) return; // Nothing to poll
+
+            try {
+                // Get IDs to check
+                const sfIds = Array.from(activeOpportunities.keys());
+                const idList = sfIds.map(id => `'${id}'`).join(',');
+
+                // Query only OUR opportunities
+                const result = await conn.query(`
+                    SELECT Id, Name, StageName 
+                    FROM Opportunity 
+                    WHERE Id IN (${idList})
+                `);
+
+                for (const opp of result.records) {
+                    const tracked = activeOpportunities.get(opp.Id);
+                    if (!tracked) continue;
+
+                    // Check if status changed to Closed Won
+                    if (opp.StageName === 'Closed Won' && tracked.stage !== 'Closed Won') {
+                        console.log(`🎉 Opportunity ${opp.Id} is Closed Won! Updating Order ${tracked.orderId}...`);
+
+                        // Send success message to mark order as Completed
+                        const updatePayload = {
+                            status: 'success', // This triggers Completed status
+                            orderId: tracked.orderId,
+                            salesforceId: opp.Id,
+                            message: 'Order gesloten in Salesforce',
+                            timestamp: new Date().toISOString()
+                        };
+
+                        const encUpdate = CryptoJS.AES.encrypt(JSON.stringify(updatePayload), SECRET_KEY).toString();
+                        channel.sendToQueue(RESPONSE_QUEUE_NAME, Buffer.from(encUpdate));
+
+                        // Remove from tracking (order is complete)
+                        activeOpportunities.delete(opp.Id);
+                        console.log(`✅ Order ${tracked.orderId} marked for completion.`);
+                    } else if (opp.StageName === 'Closed Lost') {
+                        // Also handle cancelled orders
+                        console.log(`❌ Opportunity ${opp.Id} is Closed Lost.`);
+                        activeOpportunities.delete(opp.Id);
+                        // Optionally send a 'cancelled' status here
+                    }
+                }
+
+            } catch (pollErr) {
+                console.error("Polling error:", pollErr.message);
+            }
+        }, 30000); // 30 seconds
+
+        console.log("🔄 Smart Polling actief - tracked Opportunities worden elke 30s gecheckt.");
 
     } catch (error) {
         console.error("💀 Worker kon niet starten:", error.message);

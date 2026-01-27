@@ -93,6 +93,21 @@ db.serialize(() => {
         else console.log("✅ Products tabel aangemaakt/bestaat al.");
     });
 
+    // 3b. Orders Tabel
+    db.run(`CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        order_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        total_amount REAL NOT NULL,
+        status TEXT DEFAULT 'Pending',
+        salesforce_id TEXT,
+        items_summary TEXT,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )`, (err) => {
+        if (err) console.error("Fout bij aanmaken orders tabel:", err.message);
+        else console.log("✅ Orders tabel aangemaakt/bestaat al.");
+    });
+
     // 4. Seed data toevoegen als producten tabel leeg is
     db.get("SELECT COUNT(*) as count FROM products", [], (err, row) => {
         if (err) {

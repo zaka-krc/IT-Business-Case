@@ -24,6 +24,7 @@ app.use(express.static('.'));
 const RABBITMQ_URL = process.env.RABBITMQ_URL;
 const EXCHANGE_NAME = 'salesforce_exchange';
 const QUEUE_NAME = 'salesforce_queue';
+const RESPONSE_QUEUE_NAME = 'salesforce_response_queue'; // New queue for feedback
 const BACKUP_QUEUE_NAME = 'salesforce_backup_local';
 const CA_CERT_PATH = './certs/ca_certificate.pem';
 
@@ -469,83 +470,157 @@ app.post('/api/send', (req, res) => {
         return res.status(400).json({ status: 'error', message: 'Mandje is leeg of gegevens ontbreken' });
     }
 
-    // We pakken het eerste item uit de bestelling om de voorraad te checken
-    const item = orderData.items[0];
+    // 2. Loop door items voor validatie, stock update EN ophalen product_code
+    const enrichedItems = [];
+    let totalAmount = 0;
 
-    // 2. SQL Query: Verminder de voorraad alleen als er genoeg is (stock >= quantity)
-    const sql = `UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`;
+    // We gebruiken een Promise.all om alle DB operaties netjes af te wachten
+    const processItems = orderData.items.map(async (item) => {
+        return new Promise((resolve, reject) => {
+            // Check en update stock
+            // Eerst halen we de huidige info op (waaronder product_code)
+            db.get("SELECT price, stock, product_code, name FROM products WHERE id = ?", [item.id], (err, productRow) => {
+                if (err) return reject(new Error("Database fout bij ophalen product " + item.id));
+                if (!productRow) return reject(new Error(`Product ${item.id} niet gevonden`));
 
-    db.run(sql, [item.quantity, item.id, item.quantity], async function (err) {
-        if (err) {
-            console.error("Database fout:", err.message);
-            return res.status(500).json({ status: 'error', message: 'Interne database fout' });
-        }
+                if (productRow.stock < item.quantity) {
+                    return reject(new Error(`Niet genoeg voorraad voor ${productRow.name}. Beschikbaar: ${productRow.stock}`));
+                }
 
-        // 'this.changes' is 0 als de WHERE clause niet klopte (dus niet genoeg voorraad)
-        if (this.changes === 0) {
-            return res.status(400).json({
-                status: 'error',
-                message: `Helaas, niet genoeg voorraad voor ${item.name}!`
+                // Update stock (Simple decrement for now)
+                db.run("UPDATE products SET stock = stock - ? WHERE id = ?", [item.quantity, item.id], (updateErr) => {
+                    if (updateErr) return reject(new Error("Fout bij updaten voorraad " + productRow.name));
+
+                    // Succes! Voeg verrijkte item toe
+                    resolve({
+                        ...item,
+                        productCode: productRow.product_code, // CRITICAL: Add code from DB
+                        name: productRow.name, // Ensure accurate name
+                        price: productRow.price // Ensure accurate price (security)
+                    });
+                });
             });
-        }
-
-        // 3. Voorraad is afgeschreven, nu pas naar RabbitMQ sturen
-        try {
-            console.log(`✅ Voorraad gereserveerd voor ${item.name}. Bericht sturen naar RabbitMQ...`);
-
-            // Genereer Order ID en bereken totaalbedrag
-            orderData.orderId = Date.now(); // Numeriek ID
-            orderData.totalAmount = orderData.items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
-
-            console.log("DEBUG SERVER: sending orderData", JSON.stringify(orderData));
-
-            await sendToQueue(orderData);
-            res.json({
-                status: 'success',
-                message: 'Bestelling gelukt! Voorraad is bijgewerkt en data is onderweg naar Salesforce.'
-            });
-        } catch (error) {
-            console.error('RabbitMQ fout:', error);
-            res.status(500).json({ status: 'error', message: 'Database bijgewerkt, maar RabbitMQ verbinding mislukt.' });
-        }
+        });
     });
+
+    Promise.all(processItems)
+        .then((items) => {
+            enrichedItems.push(...items);
+
+            // Herbereken totaal op basis van DB prijzen
+            totalAmount = enrichedItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+            const itemsSummary = enrichedItems.map(i => `${i.quantity}x ${i.name}`).join(', ');
+            const userId = orderData.userId || 0;
+
+            console.log("✅ Voorraad bijgewerkt en items verrijkt with Product Codes.");
+
+            // A. Opslaan in SQLite 'orders' tabel
+            db.run(
+                "INSERT INTO orders (user_id, total_amount, status, items_summary) VALUES (?, ?, 'Pending', ?)",
+                [userId, totalAmount, itemsSummary],
+                async function (err) {
+                    if (err) {
+                        console.error("Order Save Error:", err);
+                        return res.status(500).json({ status: 'error', message: 'Order opslaan mislukt' });
+                    }
+
+                    const newOrderId = this.lastID || Date.now();
+
+                    // Update orderData voor RabbitMQ
+                    const finalOrderPayload = {
+                        ...orderData,
+                        orderId: newOrderId,
+                        totalAmount: totalAmount,
+                        items: enrichedItems // NOW CONTAINS productCode
+                    };
+
+                    console.log(`DEBUG SERVER: sending payload with codes:`, JSON.stringify(finalOrderPayload.items.map(i => i.productCode)));
+
+                    // B. Stuur naar RabbitMQ
+                    try {
+                        await sendToQueue(finalOrderPayload);
+                        res.json({
+                            status: 'success',
+                            message: 'Bestelling geplaatst! Status: Pending.',
+                            orderId: newOrderId
+                        });
+                    } catch (mqErr) {
+                        console.error('RabbitMQ fout:', mqErr);
+                        res.status(500).json({ status: 'error', message: 'Order communicatie mislukt.' });
+                    }
+                }
+            );
+        })
+        .catch(err => {
+            console.error("Order process error:", err);
+            res.status(400).json({ status: 'error', message: err.message });
+        });
 });
 
 // --- CONSUMER ENDPOINTS ---
-async function consumeMessages(queueName = QUEUE_NAME) {
-    let connection;
+// --- ACHTERGROND MESSAGE WORKER ---
+// Luistert naar status updates van de Salesforce worker en update de lokale database
+async function startResponseWorker() {
+    console.log("📨 Start Response Worker...");
     try {
-        connection = await amqp.connect(RABBITMQ_URL, sslOptions);
+        const connection = await amqp.connect(RABBITMQ_URL, sslOptions);
         const channel = await connection.createChannel();
-        await channel.assertQueue(queueName, { durable: true });
+        await channel.assertQueue(RESPONSE_QUEUE_NAME, { durable: true });
 
-        const messages = [];
-        let msg = await channel.get(queueName);
-        if (msg) {
-            const content = msg.content.toString();
-            try {
-                const bytes = CryptoJS.AES.decrypt(content, SECRET_KEY);
-                const decrypted = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-                messages.push(decrypted);
-                channel.ack(msg);
-            } catch (e) {
-                console.error('Decrypt Fout:', e);
-                channel.nack(msg, false, false);
+        channel.consume(RESPONSE_QUEUE_NAME, async (msg) => {
+            if (msg) {
+                try {
+                    const content = msg.content.toString();
+                    const bytes = CryptoJS.AES.decrypt(content, SECRET_KEY);
+                    const decrypted = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+
+                    console.log(`📨 Feedback ontvangen voor Order ${decrypted.orderId}: ${decrypted.status}`);
+
+                    if (decrypted.status === 'success' && decrypted.orderId) {
+                        // Status 'success' = Closed Won in SF → Mark as Completed
+                        db.run("UPDATE orders SET status = 'Completed', salesforce_id = ? WHERE id = ?",
+                            [decrypted.salesforceId, decrypted.orderId],
+                            (err) => {
+                                if (err) console.error("Update Order Status Error:", err);
+                                else console.log(`✅ Order ${decrypted.orderId} status bijgewerkt naar Completed.`);
+                            }
+                        );
+                    } else if (decrypted.status === 'created' && decrypted.orderId) {
+                        // Status 'created' = Opportunity aangemaakt in SF → Mark as Processing
+                        db.run("UPDATE orders SET status = 'Processing', salesforce_id = ? WHERE id = ?",
+                            [decrypted.salesforceId, decrypted.orderId],
+                            (err) => {
+                                if (err) console.error("Update Order Status Error:", err);
+                                else console.log(`📦 Order ${decrypted.orderId} status bijgewerkt naar Processing (SF Opportunity aangemaakt).`);
+                            }
+                        );
+                    }
+
+                    channel.ack(msg);
+                } catch (e) {
+                    console.error("Response Worker Fout:", e);
+                    channel.nack(msg, false, false); // Requeue indien nodig, of dead-letter
+                }
             }
-        }
-
-        setTimeout(() => { if (connection) connection.close(); }, 200);
-        return messages;
+        });
     } catch (e) {
-        console.error('Consume Fout:', e);
-        if (connection) connection.close();
-        return [];
+        console.error("Response Worker Connectie Fout:", e);
     }
 }
 
-app.get('/api/consume', async (req, res) => {
-    const msgs = await consumeMessages(QUEUE_NAME);
-    res.json({ status: 'success', data: msgs });
+// Start de worker
+startResponseWorker();
+
+// --- CONSUMER ENDPOINTS (Voor Frontend Polling - Optioneel/Legacy) ---
+// Oude /api/consume endpoint mag blijven voor debug, maar frontend gebruikt nu /api/orders
+// ... (code verwijderd of hierboven herschreven) ... 
+
+app.get('/api/orders/:userId', (req, res) => {
+    const userId = req.params.userId;
+    db.all("SELECT * FROM orders WHERE user_id = ? ORDER BY order_date DESC", [userId], (err, rows) => {
+        if (err) return res.status(500).json({ status: 'error', message: err.message });
+        res.json({ status: 'success', orders: rows });
+    });
 });
 
 app.listen(PORT, () => {

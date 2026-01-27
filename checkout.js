@@ -73,11 +73,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData(checkoutForm);
 
         const orderData = {
+            userId: user.id, // Add userId for backend tracking
             items: cart.map(item => ({
                 id: item.id,
                 name: item.name,
                 price: item.price,
-                quantity: item.quantity
+                quantity: item.quantity,
+                productCode: item.product_code // Ensure this is stored in cart items
             })),
             customer: {
                 voornaam: formData.get('firstName'),

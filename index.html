@@ -17,21 +17,28 @@
 
 <body>
 
-    <header style="position: relative; display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;">
+    <header
+        style="position: relative; display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem;">
         <!-- Left: Admin Button -->
         <div style="flex: 1; display: flex; justify-content: flex-start;">
-            <a href="admin.html" id="admin-btn" class="nav-btn" style="display: none; background-color: #333; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; font-weight: bold;">
+            <a href="admin.html" id="admin-btn" class="nav-btn"
+                style="display: none; background-color: #333; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; font-weight: bold;">
                 Admin
             </a>
         </div>
 
         <!-- Center: Logo -->
-        <a href="index.html" style="text-decoration: none; color: inherit; position: absolute; left: 50%; transform: translateX(-50%);">
+        <a href="index.html"
+            style="text-decoration: none; color: inherit; position: absolute; left: 50%; transform: translateX(-50%);">
             <div class="logo">Techno</div>
         </a>
 
         <!-- Right: Actions -->
         <div style="flex: 1; display: flex; justify-content: flex-end; align-items: center; gap: 1rem;">
+            <a href="orders.html"
+                style="text-decoration: none; color: inherit; font-weight: 500; font-size: 0.9rem; margin-right: 0.5rem;">
+                <ion-icon name="list-outline" style="vertical-align: middle;"></ion-icon> Bestellingen
+            </a>
             <div id="user-actions">
                 <a href="login.html" class="login-link"
                     style="text-decoration: none; color: var(--dark-bg); font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
@@ -52,18 +59,7 @@
             <!-- Producten worden hier geladen door JS -->
         </div>
 
-        <!-- Consumentensectie -->
-        <div class="consumer-section" style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid #eee;">
-            <h2>RabbitMQ Consumer</h2>
-            <p>Klik op de knop om berichten uit de wachtrij te halen en hier te tonen.</p>
-            <button id="consume-btn" class="checkout-btn" style="max-width: 300px; margin: 1rem 0;">Consume RabbitMQ
-                Messages</button>
-
-            <div id="messages-display"
-                style="background: #f8f9fa; padding: 1rem; border-radius: 8px; min-height: 100px; font-family: monospace; white-space: pre-wrap; border: 1px solid #ddd;">
-                Nog geen berichten opgehaald...
-            </div>
-        </div>
+        <!-- Consumer Sectie Verwijderd - vervangen door automatische history -->
     </main>
 
     <!-- Achtergrond -->
