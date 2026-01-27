@@ -31,25 +31,11 @@ jobs:
         run: npm install
 
       # --- TEST 1: RabbitMQ Connectiviteit ---
-      - name: Test RabbitMQ Connection
+      # --- TEST 1: Run Jest Tests (includes RabbitMQ check) ---
+      - name: Run Tests
         env:
-          # We gebruiken localhost omdat de service in de runner draait
           RABBITMQ_URL: amqp://guest:guest@localhost:5672
-        run: |
-          node -e "
-          const amqp = require('amqplib');
-          async function test() {
-            try {
-              const conn = await amqp.connect(process.env.RABBITMQ_URL);
-              console.log('✅ RabbitMQ verbinding succesvol!');
-              await conn.close();
-              process.exit(0);
-            } catch (err) {
-              console.error('❌ RabbitMQ verbinding mislukt:', err.message);
-              process.exit(1);
-            }
-          }
-          test();"
+        run: npm test
 
       # --- TEST 2: Salesforce API Check ---
       # Let op: dit werkt alleen als je SF_USERNAME, SF_PASSWORD, etc. in GitHub Secrets zet

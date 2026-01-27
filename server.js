@@ -48,13 +48,16 @@ async function sendToQueue(orderData) {
     try {
         connection = await amqp.connect(RABBITMQ_URL, sslOptions);
         const channel = await connection.createChannel();
-        await channel.assertQueue(QUEUE_NAME, { durable: true });
+
+        // 1. Assert Exchange (Fanout)
+        await channel.assertExchange(EXCHANGE_NAME, 'fanout', { durable: true });
 
         // Versleutel de data
         const encrypted = CryptoJS.AES.encrypt(JSON.stringify(orderData), SECRET_KEY).toString();
 
-        channel.sendToQueue(QUEUE_NAME, Buffer.from(encrypted), { persistent: true });
-        console.log(`📤 Order ${orderData.orderId} verzonden naar RabbitMQ`);
+        // 2. Publish to Exchange (Routing key is empty for fanout)
+        channel.publish(EXCHANGE_NAME, '', Buffer.from(encrypted), { persistent: true });
+        console.log(`📤 Order ${orderData.orderId} gepubliceerd op Exchange '${EXCHANGE_NAME}'`);
 
         await channel.close();
         await connection.close();

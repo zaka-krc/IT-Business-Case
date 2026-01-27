@@ -1,5 +1,6 @@
 const { spawn } = require('child_process');
 const path = require('path');
+const kill = require('tree-kill');
 
 console.log('╔═══════════════════════════════════════╗');
 console.log('║   🚀 Bestell App Launcher            ║');
@@ -42,6 +43,7 @@ initDb.on('close', (code) => {
         if (output.includes('Server running')) {
             console.log('\n✅ Server is actief!\n');
             startSalesforceWorker();
+            startBackupWorker();
         }
     });
 
@@ -57,6 +59,10 @@ initDb.on('close', (code) => {
 
 // Step 3: Start Salesforce Worker (optional)
 function startSalesforceWorker() {
+    if (processes.find(p => p.name === 'SF-Worker')) {
+        console.log('⚠️ Salesforce Worker draait al!');
+        return;
+    }
     console.log('🔗 Stap 3: Salesforce Worker starten...');
 
     const sfWorker = spawn('node', ['sf-integratie.js'], {
@@ -88,6 +94,26 @@ function startSalesforceWorker() {
     });
 }
 
+// Step 4: Start Backup Worker
+function startBackupWorker() {
+    console.log('💾 Stap 4: Backup Worker starten...');
+
+    const backupWorker = spawn('node', ['backup_worker.js'], {
+        cwd: __dirname,
+        stdio: 'pipe',
+        shell: true
+    });
+    processes.push({ name: 'Backup-Worker', process: backupWorker });
+
+    backupWorker.stdout.on('data', (data) => {
+        process.stdout.write(`[BACKUP] ${data}`);
+    });
+
+    backupWorker.stderr.on('data', (data) => {
+        process.stderr.write(`[BACKUP ERROR] ${data}`);
+    });
+}
+
 // Cleanup function
 function killAll() {
     console.log('\n\n🛑 Alle processen stoppen...');
@@ -108,6 +134,7 @@ initDb.on('error', (err) => {
 });
 
 // Show helpful info after startup
+// Show helpful info after startup
 setTimeout(() => {
     console.log('\n╔═══════════════════════════════════════╗');
     console.log('║   ✨ Applicatie Actief!              ║');
@@ -116,5 +143,49 @@ setTimeout(() => {
     console.log('   🏠 Frontend:  http://localhost:3000/index.html');
     console.log('   🔐 Login:     http://localhost:3000/login.html');
     console.log('   📦 Products:  http://localhost:3000/api/products');
+    console.log('\n🎮  Controls:');
+    console.log('   [s] Stop Salesforce Worker (Test DLQ)');
+    console.log('   [r] Restart Salesforce Worker');
+    console.log('   [q] Quit Application');
     console.log('\n⌨️  Druk op CTRL+C om te stoppen\n');
 }, 2000);
+
+// Stop Salesforce Worker function
+function stopSalesforceWorker() {
+    const index = processes.findIndex(p => p.name === 'SF-Worker');
+    if (index !== -1) {
+        const { process: proc } = processes[index];
+        // Remove from list first to prevent race conds or duplicate killing
+        processes.splice(index, 1);
+
+        // Kill the process tree
+        kill(proc.pid, 'SIGKILL', (err) => {
+            if (err) {
+                console.error('Failed to kill Salesforce Worker:', err);
+            } else {
+                console.log('\n🛑 Salesforce Worker handmatig gestopt (DLQ Test Mode).');
+            }
+        });
+    } else {
+        console.log('\n⚠️ Salesforce Worker draait niet.');
+    }
+}
+
+// Handle Keyboard Input
+const readline = require('readline');
+readline.emitKeypressEvents(process.stdin);
+if (process.stdin.isTTY) {
+    process.stdin.setRawMode(true);
+}
+
+process.stdin.on('keypress', (str, key) => {
+    if (key.ctrl && key.name === 'c') {
+        killAll();
+    } else if (key.name === 'q') {
+        killAll();
+    } else if (key.name === 's') {
+        stopSalesforceWorker();
+    } else if (key.name === 'r') {
+        startSalesforceWorker();
+    }
+});
